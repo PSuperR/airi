@@ -17,6 +17,8 @@ export interface Live2DMotionsContext {
   resolve: (fileName: string) => Live2DMotionControl | undefined
   setExecutor: (executor: Live2DMotionExecutor | undefined) => void
   execute: (fileName: string) => Promise<boolean>
+  /** Plays one available motion. The agent policy does not apply. */
+  play: (fileName: string) => Promise<boolean>
   clear: () => void
 }
 
@@ -40,12 +42,20 @@ export function createLive2DMotionsContext(
     executor = nextExecutor
   }
 
-  async function execute(fileName: string) {
-    const motion = resolve(fileName)
+  async function playMotion(fileName: string, motions: readonly Live2DMotionControl[]) {
+    const motion = motions.find(item => item.fileName === fileName)
     if (!motion || !executor)
       return false
 
     return executor.play(motion)
+  }
+
+  function execute(fileName: string) {
+    return playMotion(fileName, enabled.value)
+  }
+
+  function play(fileName: string) {
+    return playMotion(fileName, available.value)
   }
 
   function clear() {
@@ -60,6 +70,7 @@ export function createLive2DMotionsContext(
     resolve,
     setExecutor,
     execute,
+    play,
     clear,
   }
 }

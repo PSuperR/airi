@@ -14,6 +14,7 @@ import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { Format, LogLevel, setGlobalFormat, setGlobalHookPostLog, setGlobalLogLevel, useLogg } from '@guiiai/logg'
 import { createContext } from '@moeru/eventa/adapters/electron/main'
 import { hasSelectedScreenCaptureSource, initScreenCaptureForMain } from '@proj-airi/electron-screen-capture/main'
+import { stageControlExtension, stageControlManifest } from '@proj-airi/plugin-stage-control'
 import { app, ipcMain, protocol, session } from 'electron'
 import { noop } from 'es-toolkit'
 import { createLoggLogger, injeca, lifecycle } from 'injeca'
@@ -41,6 +42,7 @@ import { setupBuiltInServer } from './services/airi/http-server'
 import { IOTraceRecordingService } from './services/airi/io-trace-recording'
 import { setupMcpManager } from './services/airi/mcp-servers'
 import { setupExtensionHost } from './services/airi/plugins'
+import { bindCaptionWindow, createHostStageKit } from './services/airi/stage-control'
 import { setupArtistryBridge } from './services/airi/widgets/artistry-bridge'
 import { setupAutoUpdater } from './services/electron/auto-updater'
 import { setupSherpawModelAssetsProtocol } from './services/electron/bundled-sherpaw-assets'
@@ -267,10 +269,23 @@ app.whenReady().then(async () => {
 
   const pluginHost = injeca.provide('modules:plugin-host', {
     dependsOn: { serverChannel, widgetsManager },
-    build: ({ dependsOn }) => setupExtensionHost({
-      ...dependsOn,
-      getExtensionManagementWebContentsId: () => extensionManagementWebContentsId,
-    }),
+    build: async ({ dependsOn }) => {
+      const service = await setupExtensionHost({
+        ...dependsOn,
+        getExtensionManagementWebContentsId: () => extensionManagementWebContentsId,
+      })
+      service.host.registerKitApi(createHostStageKit())
+      try {
+        await service.host.startExtension(stageControlExtension, {
+          manifest: stageControlManifest,
+          runtime: 'electron',
+        })
+      }
+      catch (error) {
+        log.withError(error).error('Failed to start the stage control plugin')
+      }
+      return service
+    },
   })
 
   const globalShortcut = injeca.provide('services:global-shortcut', () => setupGlobalShortcutService())
@@ -355,7 +370,19 @@ app.whenReady().then(async () => {
 
   const captionWindow = injeca.provide('windows:caption', {
     dependsOn: { mainWindow, serverChannel, i18n },
-    build: async ({ dependsOn }) => setupCaptionWindowManager(dependsOn),
+    build: async ({ dependsOn }) => {
+      const manager = setupCaptionWindowManager(dependsOn)
+      bindCaptionWindow(async () => {
+        const window = await manager.getWindow()
+        if (window.isDestroyed())
+          throw new Error('The caption window is not ready.')
+        if (window.isMinimized())
+          window.restore()
+        if (!window.isVisible())
+          window.showInactive()
+      })
+      return manager
+    },
   })
 
   const tray = injeca.provide('app:tray', {

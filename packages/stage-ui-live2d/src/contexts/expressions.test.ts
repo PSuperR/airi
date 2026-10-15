@@ -161,4 +161,20 @@ describe('live2D expressions context', () => {
     await vi.advanceTimersByTimeAsync(1)
     expect(reset).toHaveBeenCalledOnce()
   })
+
+  it('plays an available expression that the agent cannot execute', async () => {
+    const expressions = createLive2DExpressionsContext({
+      getParameterDefault: () => 0,
+      isEnabled: () => false,
+    })
+    const activate = vi.fn(async () => true)
+    expressions.register(parseLive2DExpression('happy', 'happy.exp3.json', JSON.stringify({
+      Parameters: [{ Id: 'ParamEyeSmile', Value: 1, Blend: 'Add' }],
+    })))
+    expressions.setExecutor({ activate, reset: () => true })
+
+    await expect(expressions.execute({ name: 'happy' })).resolves.toBe(false)
+    await expect(expressions.play({ name: 'happy' })).resolves.toBe(true)
+    expect(activate).toHaveBeenCalledOnce()
+  })
 })

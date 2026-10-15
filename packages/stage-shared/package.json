@@ -25,6 +25,7 @@
     "./perf/io-trace": "./src/perf/io-trace.ts",
     "./plugin-host": "./src/plugin-host.ts",
     "./screen-ambient-light": "./src/screen-ambient-light/index.ts",
+    "./stage-command": "./src/stage-command.ts",
     "./server-channel-qr": "./src/server-channel-qr.ts",
     "./speaker-model": "./src/speaker-model.ts",
     "./stores/screen-ambient-light": "./src/stores/screen-ambient-light.ts",

@@ -17,6 +17,20 @@ describe('live2D motions context', () => {
     expect(play).toHaveBeenCalledOnce()
   })
 
+  it('plays an available motion that the agent cannot execute', async () => {
+    const motions = createLive2DMotionsContext(motion => motion.fileName !== 'hidden.motion3.json')
+    const play = vi.fn(async () => true)
+    motions.register([
+      { fileName: 'wave.motion3.json', group: 'Wave', index: 0 },
+      { fileName: 'hidden.motion3.json', group: 'Hidden', index: 0 },
+    ])
+    motions.setExecutor({ play })
+
+    await expect(motions.execute('hidden.motion3.json')).resolves.toBe(false)
+    await expect(motions.play('hidden.motion3.json')).resolves.toBe(true)
+    expect(play).toHaveBeenCalledTimes(1)
+  })
+
   it('drops the model executor when the registry is cleared', async () => {
     const motions = createLive2DMotionsContext(() => true)
     const play = vi.fn(async () => true)

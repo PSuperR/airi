@@ -1104,8 +1104,8 @@ function headAnchor() {
 defineExpose({
   headAnchor,
   getInteractionColliders: () => interactionColliders.value?.colliders ?? [],
-  setExpression(expression: string, intensity = 1) {
-    vrmEmote.value?.setEmotionWithResetAfter(expression, 3000, intensity)
+  setExpression(expression: string, intensity = 1, durationMs = 3000) {
+    return vrmEmote.value?.setEmotionWithResetAfter(expression, durationMs, intensity) ?? false
   },
   // NOTICE: This runtime frame hook is intentionally separate from internal VRM model hooks.
   // External callers use it for live pose/tracking input; internal hooks remain reserved for

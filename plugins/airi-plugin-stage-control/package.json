@@ -1,0 +1,25 @@
+{
+  "name": "@proj-airi/plugin-stage-control",
+  "type": "module",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Built-in desktop plugin that drives the stage from the local server channel",
+  "exports": {
+    ".": "./src/index.ts",
+    "./kit": "./src/kit.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@moeru/std": "catalog:",
+    "@proj-airi/plugin-sdk": "workspace:^",
+    "@proj-airi/stage-shared": "workspace:^",
+    "valibot": "catalog:"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:vitest"
+  }
+}

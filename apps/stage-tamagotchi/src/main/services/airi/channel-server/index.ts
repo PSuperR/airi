@@ -29,6 +29,7 @@ import {
 } from '../../../../shared/eventa'
 import { createConfig } from '../../../libs/electron/persistence'
 import { ensureServerChannelConfigDefaults } from './config'
+import { serverChannelClientUrl } from './endpoint'
 
 const channelServerConfigSchema = object({
   hostname: optional(string()),
@@ -352,6 +353,19 @@ async function getOrCreateCertificate() {
 
   const caCert = existsSync(caCertPath) ? readFileSync(caCertPath, 'utf-8') : undefined
   return { cert: withCertificateChain(cert, caCert), key }
+}
+
+/** Reads the local WebSocket URL and auth token for an in-process client. */
+export async function readServerChannelEndpoint() {
+  const config = await getChannelServerConfig()
+  return {
+    url: serverChannelClientUrl({
+      hostname: config.hostname,
+      tls: config.tlsConfig !== null,
+      port: getServerChannelPort(),
+    }),
+    token: config.authToken,
+  }
 }
 
 export async function setupServerChannel(params: { lifecycle: Lifecycle }): Promise<Server> {
