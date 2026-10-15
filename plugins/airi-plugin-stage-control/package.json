@@ -5,10 +5,21 @@
   "private": true,
   "description": "Built-in desktop plugin that drives the stage from the local server channel",
   "exports": {
-    ".": "./src/index.ts",
-    "./kit": "./src/kit.ts"
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    }
   },
+  "main": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "files": [
+    "README.md",
+    "dist",
+    "package.json"
+  ],
   "scripts": {
+    "build": "tsdown",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
@@ -19,6 +30,7 @@
     "valibot": "catalog:"
   },
   "devDependencies": {
+    "tsdown": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:vitest"
   }

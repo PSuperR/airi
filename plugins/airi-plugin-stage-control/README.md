@@ -4,6 +4,16 @@ A local program uses this plugin to drive the desktop stage. No language model i
 
 The desktop app starts the plugin with the app.
 
+## Build
+
+The package entry is `dist/index.mjs`.
+
+`pnpm -F @proj-airi/stage-tamagotchi run dev` compiles this plugin first.
+`pnpm -F @proj-airi/stage-tamagotchi run build` does the same.
+
+Electron then loads `dist/index.mjs` from the package.
+The desktop dev command, the desktop build command, and the desktop typecheck command each run that compile.
+
 ## Connection
 
 Open Settings, then Connection. Copy the auth token.
