@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { resizeBoundsByDelta, setWindowAlwaysOnTop } from './window'
+import { resizeBoundsByDelta, setWindowAlwaysOnTop, setWindowVisible } from './window'
 
 const mocks = vi.hoisted(() => ({
   isMacOS: false,
@@ -97,5 +97,47 @@ describe('resizeBoundsByDelta', () => {
 
     expect(resizeBoundsByDelta(bounds, { deltaX: 1000, deltaY: 1000, direction: 'nw', minWidth: 300, minHeight: 250 }))
       .toEqual({ x: 200, y: 350, width: 300, height: 250 })
+  })
+})
+
+describe('setWindowVisible', () => {
+  function createWindow(overrides: Partial<{
+    destroyed: boolean
+    minimized: boolean
+  }> = {}) {
+    return {
+      focus: vi.fn(),
+      hide: vi.fn(),
+      isDestroyed: () => overrides.destroyed ?? false,
+      isMinimized: () => overrides.minimized ?? false,
+      restore: vi.fn(),
+      show: vi.fn(),
+    }
+  }
+
+  it('restores, shows, and focuses a minimized window', () => {
+    const window = createWindow({ minimized: true })
+
+    setWindowVisible(window, true)
+
+    expect(window.restore).toHaveBeenCalledOnce()
+    expect(window.show).toHaveBeenCalledOnce()
+    expect(window.focus).toHaveBeenCalledOnce()
+    expect(window.hide).not.toHaveBeenCalled()
+  })
+
+  it('hides a visible window', () => {
+    const window = createWindow()
+
+    setWindowVisible(window, false)
+
+    expect(window.hide).toHaveBeenCalledOnce()
+    expect(window.show).not.toHaveBeenCalled()
+  })
+
+  it('throws when the window is closed', () => {
+    const window = createWindow({ destroyed: true })
+
+    expect(() => setWindowVisible(window, true)).toThrow('The main window is closed.')
   })
 })

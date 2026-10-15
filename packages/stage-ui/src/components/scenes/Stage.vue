@@ -32,6 +32,7 @@ import StageAvatarModelMissing from './stage-avatar-model-missing.vue'
 import StageRenderError from './stage-render-error.vue'
 
 // import { useDuckDb } from '../../composables/use-duck-db'
+import { useStageExternalControl } from '../../composables/use-stage-external-control'
 import { Emotion, EMOTION_EmotionMotionName_value, EMOTION_VRMExpressionName_value, EmotionThinkMotionName } from '../../constants/emotions'
 import { live2dMotionMagicProfiles, useLive2DMotionMagic, useLive2DMotionMagicSettings } from '../../features/motions/live2d'
 import { getSpeechBusContext, speechOutputGetPlaybackState, speechOutputPlaybackStateChangedEvent } from '../../services/speech/bus'
@@ -52,9 +53,14 @@ import { useVoiceStore } from '../../stores/voice'
 const props = withDefaults(defineProps<{
   cursorPosition?: { x: number, y: number }
   enableOrbitControls?: boolean
+  /** Accepts authenticated `stage:control` events. Only the character window sets this. */
+  externalControl?: boolean
   paused?: boolean
+  /** Shows or hides the window that owns this stage. Absent outside the desktop app. */
+  setWindowVisible?: (visible: boolean) => void | Promise<void>
 }>(), {
   enableOrbitControls: true,
+  externalControl: false,
   paused: false,
 })
 
@@ -421,6 +427,32 @@ const playback = new Playback(new BrowserPlayback(audioContext, {
   onSource: (source) => { currentAudioSource.value = source },
 }))
 let playingCount = 0
+
+useStageExternalControl({
+  enabled: () => props.externalControl,
+  live2d,
+  setVrmExpression: (name, intensity) => {
+    const viewer = vrmViewerRef.value
+    if (!viewer)
+      throw new Error('The VRM model is not ready.')
+    viewer.setExpression(name, intensity)
+  },
+  playback,
+  audioContext,
+  setWindowVisible: props.setWindowVisible,
+  onSpeechStart: () => {
+    playingCount += 1
+    nowSpeaking.value = true
+    speechVoicing.value = true
+  },
+  onSpeechEnd: () => {
+    playingCount -= 1
+    if (playingCount > 0)
+      return
+    resetSpeakingState()
+    speechVoicing.value = false
+  },
+})
 
 function resetSpeakingState() {
   nowSpeaking.value = false
