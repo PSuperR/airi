@@ -8,6 +8,16 @@ Shared character behavior belongs in `packages/stage-ui`. Use `stage-web` for br
 From the repository root, run `pnpm install`, then `pnpm dev:tamagotchi`.
 Run `pnpm -F @proj-airi/stage-tamagotchi build` to build the app.
 
+## External stage control
+
+An authenticated program on this computer can drive the character.
+It connects to the channel WebSocket, then sends `stage:control`.
+The actions set the expression, play a Live2D motion, show a caption, move the model, select a model, and show or hide the main window.
+Before you use external control, set a token in Settings, under Connection.
+The token and every action are in [the stage control guide](../../docs/stage-control.md).
+Run `node scripts/stage-control-example.mjs`.
+The script sends one example of each action.
+
 ## Local model files
 
 Sherpaw downloads remote model files into the app user data directory. The main

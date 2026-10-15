@@ -14,9 +14,10 @@ import {
   electronWindowClose,
   electronWindowLifecycleChanged,
   electronWindowSetAlwaysOnTop,
+  electronWindowSetVisible,
 } from '../../../shared/eventa'
 import { onAppBeforeQuit, onAppWindowAllClosed } from '../../libs/bootkit/lifecycle'
-import { resizeWindowByDelta, setWindowAlwaysOnTop } from '../../windows/shared/window'
+import { resizeWindowByDelta, setWindowAlwaysOnTop, setWindowVisible } from '../../windows/shared/window'
 
 export function createWindowService(params: { context: ReturnType<typeof createContext>['context'], window: BrowserWindow }) {
   function getWindowLifecycleState(reason: ElectronWindowLifecycleState['reason']): ElectronWindowLifecycleState {
@@ -89,6 +90,13 @@ export function createWindowService(params: { context: ReturnType<typeof createC
     if (params.window.webContents.id === options?.raw.ipcMainEvent.sender.id) {
       setWindowAlwaysOnTop(params.window, Boolean(flag))
     }
+  })
+
+  defineInvokeHandler(params.context, electronWindowSetVisible, (visible, options) => {
+    if (params.window.webContents.id !== options?.raw.ipcMainEvent.sender.id)
+      return
+
+    setWindowVisible(params.window, Boolean(visible))
   })
 
   defineInvokeHandler(params.context, electron.window.setVibrancy, (vibrancy, options) => {

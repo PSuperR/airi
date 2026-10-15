@@ -29,6 +29,38 @@ export function toggleWindowShow(window?: BrowserWindow | null): void {
   window?.focus()
 }
 
+/** The window operations `setWindowVisible` needs. Tests pass a fake window. */
+export interface WindowVisibilityTarget {
+  focus: () => void
+  hide: () => void
+  isDestroyed: () => boolean
+  isMinimized: () => boolean
+  restore: () => void
+  show: () => void
+}
+
+/**
+ * Shows or hides one window.
+ *
+ * A visible request restores a minimized window, then shows and focuses it.
+ * A hidden request hides the window and leaves a minimized window minimized.
+ */
+export function setWindowVisible(window: WindowVisibilityTarget | null | undefined, visible: boolean): void {
+  if (!window || window.isDestroyed())
+    throw new Error('The main window is closed.')
+
+  if (!visible) {
+    window.hide()
+    return
+  }
+
+  if (window.isMinimized())
+    window.restore()
+
+  window.show()
+  window.focus()
+}
+
 export function transparentWindowConfig(): BrowserWindowConstructorOptions {
   return {
     frame: false,

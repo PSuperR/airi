@@ -5,6 +5,8 @@ import {
   extensionKitAnnounce,
   extensionModuleAnnounce,
   peerAuthenticate,
+  stageControl,
+  stageControlResult,
 } from './events'
 
 describe('extension runtime protocol events', () => {
@@ -19,5 +21,10 @@ describe('extension runtime protocol events', () => {
 
   it('defines kit availability events under extension kit namespace', () => {
     expect(extensionKitAnnounce.id).toBe('extension:kit:announce')
+  })
+
+  it('defines stage control separately from its result', () => {
+    expect(stageControl.id).toBe('stage:control')
+    expect(stageControlResult.id).toBe('stage:control:result')
   })
 })

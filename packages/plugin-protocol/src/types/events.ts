@@ -1116,6 +1116,109 @@ export type AssetGetResponseEvent
   = | { ref: string, mimeType: string, /** Base64 bytes. */ data: string }
     | { ref: string, error: string }
 
+/**
+ * One external command for the desktop stage.
+ *
+ * The server forwards `stage:control` only after `module:authenticate` succeeds.
+ * The stage answers with `stage:control:result` on the same `id`.
+ */
+export type StageControlRequest
+  = | StageControlExpression
+    | StageControlMotion
+    | StageControlCaption
+    | StageControlTransform
+    | StageControlModel
+    | StageControlWindow
+
+/** Sets the expression on the loaded Live2D or VRM model. */
+export interface StageControlExpression {
+  /** Caller correlation id. The result event echoes this value. */
+  id: string
+  action: 'expression'
+  /** Exact expression name on the loaded model. */
+  name: string
+  /**
+   * Seconds before a Live2D expression returns to the default.
+   * VRM ignores this field.
+   */
+  duration?: number
+  /**
+   * VRM weight from above 0 through 1.
+   * Live2D ignores this field.
+   */
+  intensity?: number
+}
+
+/** Plays one Live2D motion. VRM has no named motion. */
+export interface StageControlMotion {
+  /** Caller correlation id. The result event echoes this value. */
+  id: string
+  action: 'motion'
+  /** Live2D motion file name. This field wins when `group` is also set. */
+  file?: string
+  /** Cubism motion group. Used when `file` is absent. */
+  group?: string
+  /** Index inside `group`. The default is 0. */
+  index?: number
+}
+
+/** Shows or clears the assistant caption, and can speak the line. */
+export interface StageControlCaption {
+  /** Caller correlation id. The result event echoes this value. */
+  id: string
+  action: 'caption'
+  /** Line shown in the caption overlay. Empty text clears the assistant caption. */
+  text: string
+  /** When true, the stage also speaks the line if speech is already configured. */
+  speak?: boolean
+}
+
+/**
+ * Moves or scales the loaded model.
+ *
+ * Live2D `x` and `y` are percentages from the screen center, from -500 to 500.
+ * Live2D `scale` is a factor from 0.01 to 3. `1` is the original size.
+ * VRM `x`, `y`, and `z` are meters from the scene origin, from -10 to 10.
+ * Values outside a range are clamped. An unsupported axis fails the whole action.
+ */
+export interface StageControlTransform {
+  /** Caller correlation id. The result event echoes this value. */
+  id: string
+  action: 'transform'
+  x?: number
+  y?: number
+  /** VRM only. */
+  z?: number
+  /** Live2D only. */
+  scale?: number
+}
+
+/** Selects a display model by id. */
+export interface StageControlModel {
+  /** Caller correlation id. The result event echoes this value. */
+  id: string
+  action: 'model'
+  /** Display model id, for example `preset-live2d-1`. */
+  modelId: string
+}
+
+/** Shows or hides the main window. */
+export interface StageControlWindow {
+  /** Caller correlation id. The result event echoes this value. */
+  id: string
+  action: 'window'
+  visible: boolean
+}
+
+/** The stage answer to one `stage:control` request. */
+export interface StageControlResult {
+  /** Same `id` as the request. */
+  id: string
+  ok: boolean
+  /** Present when `ok` is false. */
+  error?: string
+}
+
 interface SparkNotifyEvent {
   id: string
   eventId: string
@@ -1320,6 +1423,9 @@ export const sparkCommand = defineProtocolEventa<SparkCommandEvent>('spark:comma
 
 export const transportConnectionHeartbeat = defineProtocolEventa<TransportConnectionHeartbeatEvent>('transport:connection:heartbeat')
 export const contextUpdate = defineProtocolEventa<ContextUpdateEvent>('context:update')
+
+export const stageControl = defineProtocolEventa<StageControlRequest>('stage:control')
+export const stageControlResult = defineProtocolEventa<StageControlResult>('stage:control:result')
 
 export const protocolEventMetadataByType = {
   [inputText.id]: inputText.metadata,
@@ -1570,6 +1676,20 @@ export interface ProtocolEvents<C = undefined> {
   'transport:connection:heartbeat': TransportConnectionHeartbeatEvent
 
   'context:update': ContextUpdateEvent
+
+  /**
+   * External command for the desktop stage (module → stage).
+   *
+   * The server forwards this event only from an authenticated connection.
+   * The stage applies one action and answers with `stage:control:result`.
+   * The answer destination is `peer:<sender peer id>`.
+   */
+  'stage:control': StageControlRequest
+  /**
+   * Stage answer to `stage:control` (stage → sender).
+   * `data.id` matches the request. `metadata.event.parentId` is the request event id.
+   */
+  'stage:control:result': StageControlResult
 }
 
 export type ProtocolEventOf<E, C = undefined> = E extends keyof ProtocolEvents<C>
