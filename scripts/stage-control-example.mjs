@@ -25,6 +25,8 @@ const actions = [
   { requestId: 'speech', action: 'speech', text: 'Hello from stage control.', speak: false },
   { requestId: 'view', action: 'view', x: 0, y: 0, scale: 1 },
   { requestId: 'model', action: 'model', modelId: 'preset-live2d-1' },
+  { requestId: 'state', action: 'state' },
+  { requestId: 'motion.list', action: 'motion.list' },
 ]
 
 function unwrap(text) {

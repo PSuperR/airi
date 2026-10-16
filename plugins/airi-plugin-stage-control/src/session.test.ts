@@ -89,6 +89,44 @@ describe('startStageControlSession', () => {
     session.stop()
   })
 
+  it('returns result data and broadcasts library events after auth', async () => {
+    const socket = new FakeSocket()
+    const session = startStageControlSession({
+      url: 'ws://127.0.0.1:6121/ws',
+      token: 'secret',
+      heartbeatMs: 60_000,
+      dispatch: async () => ({ ok: true, data: { motions: [] } }),
+      connect: () => socket,
+    })
+
+    expect(session.broadcast({ event: 'motion.library.changed' })).toBe(false)
+    socket.emit('open', {})
+    socket.emit('message', { data: JSON.stringify({ type: 'module:authenticated', data: { authenticated: true } }) })
+    await flush()
+
+    socket.emit('message', {
+      data: JSON.stringify({
+        type: 'stage:control',
+        data: { requestId: 'm', action: 'motion.list' },
+        metadata: { sender: { peerId: 'peer-1' } },
+      }),
+    })
+    await vi.waitFor(() => {
+      expect(lastMessage(socket)).toEqual({
+        type: 'stage:control:result',
+        data: { requestId: 'm', ok: true, data: { motions: [] } },
+        route: { destinations: ['peer:peer-1'] },
+      })
+    })
+
+    expect(session.broadcast({ event: 'motion.library.changed', motions: [] })).toBe(true)
+    expect(lastMessage(socket)).toEqual({
+      type: 'stage:control:event',
+      data: { event: 'motion.library.changed', motions: [] },
+    })
+    session.stop()
+  })
+
   it('does not broadcast a result when the sender is missing', async () => {
     const socket = new FakeSocket()
     const log = vi.fn()

@@ -59,7 +59,67 @@ const windowCommand = v.object({
   visible: v.boolean(),
 })
 
+const motionKey = v.pipe(v.string(), v.trim(), v.minLength(1))
+const tags = v.array(v.pipe(v.string(), v.maxLength(64)))
+const description = v.pipe(v.string(), v.maxLength(1000))
+
+const motionListCommand = v.object({
+  requestId: v.optional(v.string()),
+  action: v.literal('motion.list'),
+  all: v.optional(v.boolean()),
+})
+
+const motionPlayCommand = v.object({
+  requestId: v.optional(v.string()),
+  action: v.literal('motion.play'),
+  id: v.optional(motionKey),
+  name: v.optional(motionKey),
+  loop: v.optional(v.boolean()),
+  fadeInMs: v.optional(fadeMs),
+  fadeOutMs: v.optional(fadeMs),
+})
+
+const motionRenameCommand = v.object({
+  requestId: v.optional(v.string()),
+  action: v.literal('motion.rename'),
+  id: motionKey,
+  name: v.optional(v.pipe(v.string(), v.maxLength(128))),
+  tags: v.optional(tags),
+  description: v.optional(description),
+})
+
+const motionUploadCommand = v.object({
+  requestId: v.optional(v.string()),
+  action: v.literal('motion.upload'),
+  fileName: v.optional(motionKey),
+  path: v.optional(motionKey),
+  base64: v.optional(v.pipe(v.string(), v.minLength(1))),
+  name: v.optional(v.pipe(v.string(), v.maxLength(128))),
+  tags: v.optional(tags),
+  description: v.optional(description),
+  overwrite: v.optional(v.boolean()),
+})
+
+const motionDeleteCommand = v.object({
+  requestId: v.optional(v.string()),
+  action: v.literal('motion.delete'),
+  id: motionKey,
+})
+
+const motionSetDirectoryCommand = v.object({
+  requestId: v.optional(v.string()),
+  action: v.literal('motion.setDirectory'),
+  directory: v.optional(motionKey),
+  reset: v.optional(v.boolean()),
+})
+
 const stageControlDataSchema = v.variant('action', [
+  motionListCommand,
+  motionPlayCommand,
+  motionRenameCommand,
+  motionUploadCommand,
+  motionDeleteCommand,
+  motionSetDirectoryCommand,
   expressionCommand,
   motionCommand,
   speechCommand,
@@ -69,10 +129,22 @@ const stageControlDataSchema = v.variant('action', [
   windowCommand,
 ])
 
+/** Motion library actions. The plugin runs them; only `motion.list` and `motion.play` read the stage. */
+export type MotionLibraryCommand
+  = | { action: 'motion.list', all?: boolean }
+    | { action: 'motion.play', id?: string, name?: string, loop?: boolean, fadeInMs?: number, fadeOutMs?: number }
+    | { action: 'motion.rename', id: string, name?: string, tags?: string[], description?: string }
+    | { action: 'motion.upload', fileName?: string, path?: string, base64?: string, name?: string, tags?: string[], description?: string, overwrite?: boolean }
+    | { action: 'motion.delete', id: string }
+    | { action: 'motion.setDirectory', directory?: string, reset?: boolean }
+
+/** Every action the plugin accepts. */
+export type PluginControlCommand = StageControlCommand | MotionLibraryCommand
+
 /** One parsed stage control request. */
 export interface StageControlRequest {
   requestId?: string
-  command: StageControlCommand
+  command: PluginControlCommand
 }
 
 /** Reads one `stage:control` data object. Throws when the payload is not valid. */
@@ -90,6 +162,15 @@ export function parseStageControlData(data: unknown): StageControlRequest {
   ) {
     throw new Error('The view action needs x, y, z, or scale.')
   }
+
+  if (parsed.output.action === 'motion.play' && parsed.output.id === undefined && parsed.output.name === undefined)
+    throw new Error('The motion.play action needs id or name.')
+  if (parsed.output.action === 'motion.upload' && (parsed.output.path === undefined) === (parsed.output.base64 === undefined))
+    throw new Error('The motion.upload action needs either path or base64.')
+  if (parsed.output.action === 'motion.upload' && parsed.output.base64 !== undefined && parsed.output.fileName === undefined)
+    throw new Error('The motion.upload action needs fileName with base64.')
+  if (parsed.output.action === 'motion.setDirectory' && parsed.output.directory === undefined && !parsed.output.reset)
+    throw new Error('The motion.setDirectory action needs directory or reset: true.')
 
   const { requestId, ...command } = parsed.output
   return {

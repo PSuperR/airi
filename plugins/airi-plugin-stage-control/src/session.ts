@@ -1,4 +1,6 @@
-import type { StageCommandResult, StageControlCommand } from '@proj-airi/stage-shared/stage-command'
+import type { StageCommandResult } from '@proj-airi/stage-shared/stage-command'
+
+import type { PluginControlCommand } from './protocol'
 
 import { errorMessageFrom } from '@moeru/std'
 
@@ -18,7 +20,7 @@ export interface StageControlSocket {
 export interface StageControlSessionOptions {
   url: string
   token: string
-  dispatch: (command: StageControlCommand) => Promise<StageCommandResult>
+  dispatch: (command: PluginControlCommand) => Promise<StageCommandResult>
   /**
    * Reads the current channel address and token before each connect.
    * Use it so a token change in Settings, Connection, does not lock the plugin out.
@@ -144,6 +146,7 @@ export function startStageControlSession(options: StageControlSessionOptions) {
         ...(requestId === undefined ? {} : { requestId }),
         ok: result.ok,
         ...(result.error === undefined ? {} : { error: result.error }),
+        ...(result.data === undefined ? {} : { data: result.data }),
       },
       route: {
         destinations: [`peer:${peerId}`],
@@ -306,6 +309,21 @@ export function startStageControlSession(options: StageControlSessionOptions) {
   connect()
 
   return {
+    /**
+     * Sends one `stage:control:event` to every peer on the channel.
+     * Returns false when the session is not connected.
+     */
+    broadcast(data: unknown) {
+      if (!socket || !authenticated)
+        return false
+      try {
+        send(socket, { type: 'stage:control:event', data })
+        return true
+      }
+      catch {
+        return false
+      }
+    },
     stop() {
       stopped = true
       if (reconnectTimer !== undefined)

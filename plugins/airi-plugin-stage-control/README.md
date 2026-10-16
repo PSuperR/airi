@@ -159,6 +159,143 @@ A Live2D model returns an error. Another model type returns an error.
 
 `true` shows the main window. `false` hides it.
 
+## Motion library
+
+The plugin keeps one library of motions the AI can discover and play:
+
+- `vrma` entries: every `.vrma` file in the motion folder. They play on a VRM model.
+- `live2d` entries: the motion groups of the current Live2D model, read from the stage.
+
+Each entry looks like this:
+
+```json
+{
+  "id": "vrma:VRMA_01.vrma",
+  "name": "VRMA_01",
+  "type": "vrma",
+  "compatibleModels": ["vrm"],
+  "source": { "kind": "file", "fileName": "VRMA_01.vrma", "path": "C:\\Users\\me\\AppData\\Roaming\\airi\\motions\\VRMA_01.vrma", "sizeBytes": 123456 },
+  "tags": ["greet"],
+  "description": "Waves one hand."
+}
+```
+
+A Live2D entry has `"id": "live2d:<group>:<index>"`, `"type": "live2d"`, `"compatibleModels": ["live2d"]`, and `"source": { "kind": "live2d", "group": "Tap", "index": 0 }`. Its default name is the group, or `<group> <n>` when the group has more than one motion.
+
+### Motion folder
+
+The default folder is `<userData>/motions` (on Windows usually `%APPDATA%\airi\motions`; the plugin logs the folder on start). The plugin creates it.
+
+The folder is chosen in this order:
+
+1. The `AIRI_MOTIONS_DIR` environment variable (absolute path).
+2. The folder saved by `motion.setDirectory`, kept in `<userData>/stage-control-motions.json`.
+3. The default folder.
+
+The plugin watches the folder. A `.vrma` file you add appears in the library after a short delay (300 ms debounce). A file you remove disappears.
+
+To use an existing folder, such as `D:\airi\vrma`:
+
+```json
+{ "type": "stage:control", "data": { "action": "motion.setDirectory", "directory": "D:\\airi\\vrma" } }
+```
+
+Send `{ "action": "motion.setDirectory", "reset": true }` to go back to the default folder. In JSON, a Windows path needs `\\`.
+
+### Names, tags, descriptions
+
+The folder holds a sidecar file, `motions.json`:
+
+```json
+{
+  "version": 1,
+  "motions": {
+    "VRMA_01.vrma": { "name": "Wave hello", "tags": ["greet", "happy"], "description": "Waves the right hand." },
+    "live2d:Tap:0": { "name": "Nod" }
+  }
+}
+```
+
+Keys are `.vrma` file names, or Live2D ids. A missing name falls back to the file name without `.vrma`. You can edit the file by hand or use `motion.rename`.
+
+### Motion actions
+
+All results arrive as `stage:control:result`. Read commands put their output in `data`.
+
+`motion.list` lists motions for the current model type. Pass `"all": true` to list every motion.
+
+```json
+{ "type": "stage:control", "data": { "requestId": "l", "action": "motion.list" } }
+```
+
+```json
+{ "type": "stage:control:result", "data": { "requestId": "l", "ok": true, "data": { "modelType": "vrm", "directory": "...", "motions": [{ "id": "vrma:VRMA_01.vrma", "name": "Wave hello", "type": "vrma", "compatibleModels": ["vrm"], "source": { "kind": "file", "fileName": "VRMA_01.vrma", "path": "...", "sizeBytes": 123456 } }] } } }
+```
+
+`modelType` is `vrm`, `live2d`, `disabled`, or `unknown` (the stage did not answer; `warning` then says why).
+
+`motion.play` plays one motion by `id` or `name` (case-insensitive; a file name also works). A `vrma` entry plays through the `vrma` action, a `live2d` entry through the `motion` action. `loop`, `fadeInMs`, and `fadeOutMs` apply to `vrma` entries.
+
+```json
+{ "type": "stage:control", "data": { "action": "motion.play", "id": "vrma:VRMA_01.vrma", "loop": false } }
+```
+
+```json
+{ "type": "stage:control", "data": { "action": "motion.play", "name": "Wave hello" } }
+```
+
+```json
+{ "type": "stage:control", "data": { "action": "motion.play", "id": "live2d:Tap:0" } }
+```
+
+`motion.rename` sets the name, tags, or description. An empty string clears that field.
+
+```json
+{ "type": "stage:control", "data": { "action": "motion.rename", "id": "vrma:VRMA_01.vrma", "name": "Wave hello", "tags": ["greet"], "description": "Waves the right hand." } }
+```
+
+`motion.upload` saves a `.vrma` file into the motion folder. Send `path` (an absolute path on the machine that runs AIRI) or `base64` with `fileName`. The file must end in `.vrma` and be at most 32 MB. An existing file is kept unless `overwrite` is `true`.
+
+```json
+{ "type": "stage:control", "data": { "action": "motion.upload", "path": "D:\\airi\\vrma\\VRMA_03.vrma", "name": "Spin" } }
+```
+
+```json
+{ "type": "stage:control", "data": { "action": "motion.upload", "fileName": "jump.vrma", "base64": "<base64 or data: URL>", "tags": ["happy"] } }
+```
+
+`motion.delete` deletes one `.vrma` file and its metadata. Live2D motions cannot be deleted.
+
+```json
+{ "type": "stage:control", "data": { "action": "motion.delete", "id": "vrma:jump.vrma" } }
+```
+
+`motion.setDirectory` changes the motion folder, as shown above.
+
+### Library events
+
+When the list changes (a file is added, removed, renamed, uploaded, or the folder changes), the plugin sends this to every peer:
+
+```json
+{ "type": "stage:control:event", "data": { "event": "motion.library.changed", "directory": "...", "motions": [] } }
+```
+
+`motions` holds the `.vrma` entries. Call `motion.list` for Live2D entries.
+
+### For AI / LLM agents
+
+1. Call `motion.list`. It returns only motions the current model can play.
+2. Choose by `name`, `tags`, and `description`.
+3. Call `motion.play` with the `id`.
+4. Listen for `motion.library.changed`, or call `motion.list` again after a model change.
+5. On `ok: false`, read `error`; it names the fix (for example, switch model or pass `id`).
+
+Use `motion.rename` to give motions clear names and tags so later choices are better.
+
+### Stage state
+
+`motion.list` reads the stage with a generic model command, `{ "action": "state" }`. It returns `{ "renderer": "live2d", "live2dMotionGroups": [ { "group": "Tap", "count": 2 } ] }` in `data`. You can send it yourself as a normal `stage:control` action.
+
 ## Example
 
 Run this command from the repository root while the desktop app is open:
@@ -175,6 +312,8 @@ The script prints one result for each action. A model can reject an action. The 
 
 The plugin owns the WebSocket session, the payload checks, and command routing.
 
-The desktop app gives the plugin four calls. Those calls read the channel address, run a model command, show or hide the main window, and show the caption window.
+The plugin also owns the motion library: the folder, the watcher, the sidecar file, upload checks, and the `motion.*` actions.
+
+The desktop app gives the plugin five calls. Those calls read the channel address, run a model command, show or hide the main window, show the caption window, and read the user data folder.
 
 The stage scene applies each model command to the current Live2D or VRM model.

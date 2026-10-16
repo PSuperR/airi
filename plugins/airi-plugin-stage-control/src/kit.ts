@@ -18,6 +18,12 @@ export interface StageKitClient {
   command: (command: StageModelCommand) => Promise<StageCommandResult>
   setWindowVisible: (visible: boolean) => StageCommandResult | Promise<StageCommandResult>
   showCaption: () => Promise<StageCommandResult>
+  /**
+   * Per-user data folder of the host app (Electron `userData`).
+   * The motion library keeps its default folder and settings there.
+   * Optional so older hosts still work; the plugin then falls back to the home folder.
+   */
+  readUserDataPath?: () => Promise<string>
 }
 
 export const stageKit = defineKit<StageKitClient>({
