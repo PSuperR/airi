@@ -20,7 +20,7 @@ spotlight:
   errors:
     unknown: Error desconocido
     prefix: 'Algo salió mal: {message}'
-    shortcutRegistrationFailed: 'Algo salió mal: no se pudo registrar el atajo de Spotlight.'
+    shortcutRegistrationFailed: 'Algo salió mal: no se pudo registrar el atajo de Spotlight ({accelerator})'
 pages:
   modules:
     mcp-server:

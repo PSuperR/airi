@@ -20,7 +20,7 @@ spotlight:
   errors:
     unknown: 不明なエラー
     prefix: '問題が発生しました: {message}'
-    shortcutRegistrationFailed: '問題が発生しました: Spotlight ショートカットを登録できませんでした。'
+    shortcutRegistrationFailed: '問題が発生しました: Spotlight ショートカットを登録できませんでした ({accelerator})'
 pages:
   modules:
     mcp-server:

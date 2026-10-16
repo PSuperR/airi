@@ -19,7 +19,7 @@ spotlight:
   errors:
     unknown: Erreur inconnue
     prefix: 'Une erreur est survenue : {message}'
-    shortcutRegistrationFailed: 'Une erreur est survenue : échec de l’enregistrement du raccourci Spotlight.'
+    shortcutRegistrationFailed: 'Une erreur est survenue : échec de l’enregistrement du raccourci Spotlight ({accelerator})'
 pages:
   modules:
     mcp-server:

@@ -53,7 +53,7 @@ const vrmaCommand = v.object({
   fadeOutMs: v.optional(fadeMs),
 })
 
-const hexColor = v.pipe(v.string(), v.regex(/^#[0-9a-f]{6}$/i))
+const hexColor = v.pipe(v.string(), v.regex(/^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/i))
 // Numbers out of range are clamped by the stage, so only finiteness is checked here.
 const lightIntensity = finiteNumber
 const lightRotation = finiteNumber

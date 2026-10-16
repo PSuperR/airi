@@ -20,7 +20,7 @@ spotlight:
   errors:
     unknown: Неизвестная ошибка
     prefix: 'Что-то пошло не так: {message}'
-    shortcutRegistrationFailed: 'Что-то пошло не так: не удалось зарегистрировать сочетание Spotlight.'
+    shortcutRegistrationFailed: 'Что-то пошло не так: не удалось зарегистрировать сочетание Spotlight ({accelerator})'
 pages:
   modules:
     mcp-server:

@@ -202,11 +202,20 @@ describe('executeStageModelCommand', () => {
   it('rejects a bad light color and the light action on Live2D', async () => {
     await expect(executeStageModelCommand({ action: 'light', ambient: { color: 'red' } }, createRuntime('vrm')))
       .rejects
-      .toThrow('ambient.color must be a #RRGGBB color.')
+      .toThrow('ambient.color must be a #RRGGBB (or #RRGGBBAA) color.')
     const live2d = createRuntime('live2d')
     await expect(executeStageModelCommand({ action: 'light', exposure: 1 }, live2d))
       .rejects
       .toThrow('The Live2D model has no scene lighting.')
     expect(live2d.setVrmLighting).not.toHaveBeenCalled()
+  })
+
+  it('reads 8-digit colors back as #rrggbb and accepts them on write', async () => {
+    const vrm = createRuntime('vrm')
+    vi.mocked(vrm.getVrmLighting).mockReturnValue({ ...lighting, ambient: { intensity: 0.6, color: '#FFFFFFFF' } })
+    const read = await executeStageModelCommand({ action: 'light' }, vrm) as typeof lighting
+    expect(read.ambient.color).toBe('#ffffff')
+    await executeStageModelCommand({ action: 'light', ambient: { color: '#11223344' } }, vrm)
+    expect(vrm.setVrmLighting).toHaveBeenLastCalledWith({ ambient: { color: '#112233' } })
   })
 })

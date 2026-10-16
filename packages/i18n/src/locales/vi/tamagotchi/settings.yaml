@@ -20,7 +20,7 @@ spotlight:
   errors:
     unknown: Lỗi không xác định
     prefix: 'Đã xảy ra lỗi: {message}'
-    shortcutRegistrationFailed: 'Đã xảy ra lỗi: không đăng ký được phím tắt Spotlight.'
+    shortcutRegistrationFailed: 'Đã xảy ra lỗi: không đăng ký được phím tắt Spotlight ({accelerator})'
 pages:
   modules:
     mcp-server:

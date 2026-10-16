@@ -20,7 +20,7 @@ spotlight:
   errors:
     unknown: 알 수 없는 오류
     prefix: '문제가 발생했습니다: {message}'
-    shortcutRegistrationFailed: '문제가 발생했습니다: Spotlight 단축키를 등록하지 못했습니다.'
+    shortcutRegistrationFailed: '문제가 발생했습니다: Spotlight 단축키를 등록하지 못했습니다 ({accelerator})'
 pages:
   modules:
     mcp-server:

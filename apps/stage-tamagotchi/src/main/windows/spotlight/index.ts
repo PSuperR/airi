@@ -12,7 +12,7 @@ import { join, resolve } from 'node:path'
 import { useLogg } from '@guiiai/logg'
 import { defineInvokeHandler } from '@moeru/eventa'
 import { createContext } from '@moeru/eventa/adapters/electron/main'
-import { ShortcutFailureReasons } from '@proj-airi/stage-shared/global-shortcut'
+import { formatElectronAccelerator, ShortcutFailureReasons } from '@proj-airi/stage-shared/global-shortcut'
 import { BrowserWindow, ipcMain, Notification, screen } from 'electron'
 import { isMacOS } from 'std-env'
 
@@ -205,8 +205,10 @@ export function setupSpotlightWindowManager(params: {
   })
 
   if (!shortcutResult.ok) {
-    log.warn(`Failed to register Spotlight shortcut: ${shortcutResult.reason}`)
-    showNotification(params.i18n.t('tamagotchi.spotlight.errors.shortcutRegistrationFailed'))
+    const accelerator = formatElectronAccelerator(getShortcutAccelerator())
+    log.warn(`Failed to register Spotlight shortcut ${accelerator}: ${shortcutResult.reason}`)
+    // NOTICE: The messages live under `tamagotchi.settings`; the old `tamagotchi.spotlight` key showed raw.
+    showNotification(params.i18n.t('tamagotchi.settings.spotlight.errors.shortcutRegistrationFailed', { accelerator }))
   }
 
   return {

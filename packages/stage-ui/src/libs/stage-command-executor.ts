@@ -183,7 +183,7 @@ async function applySpeech(command: Extract<StageModelCommand, { action: 'speech
   await runtime.speakText(command.text)
 }
 
-const HEX_COLOR = /^#[0-9a-f]{6}$/i
+const HEX_COLOR = /^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/i
 
 function clamp(value: number, min: number, max: number, field: string) {
   if (typeof value !== 'number' || !Number.isFinite(value))
@@ -193,8 +193,24 @@ function clamp(value: number, min: number, max: number, field: string) {
 
 function color(value: string, field: string) {
   if (typeof value !== 'string' || !HEX_COLOR.test(value))
-    throw new Error(`${field} must be a #RRGGBB color.`)
-  return value.toLowerCase()
+    throw new Error(`${field} must be a #RRGGBB (or #RRGGBBAA) color.`)
+  // Alpha is ignored: scene lights have none.
+  return value.slice(0, 7).toLowerCase()
+}
+
+/** `#RRGGBBAA` -> `#rrggbb`, so a read-back color can be written back unchanged. */
+function toRgbHex(value: string) {
+  return HEX_COLOR.test(value) ? value.slice(0, 7).toLowerCase() : value
+}
+
+/** Normalizes every lighting color to `#rrggbb`. */
+export function normalizeLighting(lighting: StageLighting): StageLighting {
+  return {
+    ...lighting,
+    ambient: { ...lighting.ambient, color: toRgbHex(lighting.ambient.color) },
+    directional: { ...lighting.directional, color: toRgbHex(lighting.directional.color) },
+    hemisphere: { ...lighting.hemisphere, skyColor: toRgbHex(lighting.hemisphere.skyColor), groundColor: toRgbHex(lighting.hemisphere.groundColor) },
+  }
 }
 
 function defined<T extends object>(value: T): T | undefined {
@@ -252,7 +268,7 @@ function applyLight(command: Extract<StageModelCommand, { action: 'light' }>, ru
   const patch = normalizeLightingPatch(command)
   if (patch)
     runtime.setVrmLighting(patch)
-  return runtime.getVrmLighting()
+  return normalizeLighting(runtime.getVrmLighting())
 }
 
 /** Reads the current model type and its Live2D motion groups. */
@@ -266,7 +282,7 @@ export function readStageState(runtime: StageCommandRuntime): StageState {
     renderer: runtime.renderer ?? 'disabled',
     live2dMotionGroups: [...counts].map(([group, count]) => ({ group, count })),
     ...(runtime.renderer === 'live2d' || runtime.renderer === 'vrm' ? { view: runtime.getView() } : {}),
-    ...(runtime.renderer === 'vrm' ? { lighting: runtime.getVrmLighting() } : {}),
+    ...(runtime.renderer === 'vrm' ? { lighting: normalizeLighting(runtime.getVrmLighting()) } : {}),
   }
 }
 
