@@ -12,9 +12,11 @@ export const stageControlExtension = defineExtension({
     const session = startStageControlSession({
       url: endpoint.url,
       token: endpoint.token,
+      readEndpoint: () => stage.readChannel(),
       dispatch: command => dispatchStageControl(command, stage),
       log: message => console.error(`[stage-control] ${message}`),
     })
+    console.error(`[stage-control] Started. Channel ${endpoint.url}.`)
     ctx.subscriptions.add({
       dispose: () => {
         session.stop()

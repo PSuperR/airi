@@ -154,4 +154,71 @@ describe('startStageControlSession', () => {
       vi.useRealTimers()
     }
   })
+  it('answers with an error when the stage never answers', async () => {
+    vi.useFakeTimers()
+    try {
+      const socket = new FakeSocket()
+      const session = startStageControlSession({
+        url: 'ws://127.0.0.1:6121/ws',
+        token: 'secret',
+        heartbeatMs: 60_000,
+        dispatchTimeoutMs: 5000,
+        dispatch: () => new Promise(() => {}),
+        connect: () => socket,
+      })
+      socket.emit('open', {})
+      socket.emit('message', { data: JSON.stringify({ type: 'module:authenticated', data: { authenticated: true } }) })
+      await flush()
+      socket.emit('message', {
+        data: JSON.stringify({
+          type: 'stage:control',
+          data: { requestId: 'v1', action: 'vrma', src: 'https://example.com/a.vrma' },
+          metadata: { sender: { peerId: 'peer-1', modules: [] } },
+        }),
+      })
+      await vi.advanceTimersByTimeAsync(5001)
+      expect(lastMessage(socket)).toEqual({
+        type: 'stage:control:result',
+        data: { requestId: 'v1', ok: false, error: 'The stage did not answer the vrma action within 5000 ms.' },
+        route: { destinations: ['peer:peer-1'] },
+      })
+      session.stop()
+    }
+    finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('reads the token again after the server rejects it', async () => {
+    vi.useFakeTimers()
+    try {
+      const sockets: FakeSocket[] = []
+      let token = 'old'
+      const session = startStageControlSession({
+        url: 'ws://127.0.0.1:6121/ws',
+        token: 'old',
+        heartbeatMs: 60_000,
+        readEndpoint: async () => ({ url: 'ws://127.0.0.1:6121/ws', token }),
+        dispatch: async () => ({ ok: true }),
+        connect: () => {
+          const socket = new FakeSocket()
+          sockets.push(socket)
+          return socket
+        },
+      })
+      await flush()
+      sockets[0]!.emit('open', {})
+      token = 'new'
+      sockets[0]!.emit('message', { data: JSON.stringify({ type: 'error', data: { message: 'invalid token' } }) })
+      await flush()
+      await vi.advanceTimersByTimeAsync(1100)
+      expect(sockets).toHaveLength(2)
+      sockets[1]!.emit('open', {})
+      expect(lastMessage(sockets[1]!)).toEqual({ type: 'module:authenticate', data: { token: 'new' } })
+      session.stop()
+    }
+    finally {
+      vi.useRealTimers()
+    }
+  })
 })

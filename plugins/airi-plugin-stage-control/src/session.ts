@@ -19,6 +19,13 @@ export interface StageControlSessionOptions {
   url: string
   token: string
   dispatch: (command: StageControlCommand) => Promise<StageCommandResult>
+  /**
+   * Reads the current channel address and token before each connect.
+   * Use it so a token change in Settings, Connection, does not lock the plugin out.
+   */
+  readEndpoint?: () => Promise<{ url: string, token: string }>
+  /** Longest time one command may run before the plugin answers with an error. Default 10 s. */
+  dispatchTimeoutMs?: number
   connect?: (url: string) => StageControlSocket
   heartbeatMs?: number
   log?: (message: string) => void
@@ -28,6 +35,23 @@ interface IncomingEvent {
   type?: unknown
   data?: unknown
   metadata?: unknown
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms)
+    unrefTimer(timer)
+    promise.then(
+      (value) => {
+        clearTimeout(timer)
+        resolve(value)
+      },
+      (error: unknown) => {
+        clearTimeout(timer)
+        reject(error)
+      },
+    )
+  })
 }
 
 function unrefTimer(timer: unknown) {
@@ -92,6 +116,8 @@ function openSocket(url: string): StageControlSocket {
 export function startStageControlSession(options: StageControlSessionOptions) {
   const heartbeatMs = options.heartbeatMs ?? 20_000
   const log = options.log ?? (() => {})
+  const dispatchTimeoutMs = options.dispatchTimeoutMs ?? 10_000
+  let endpoint = { url: options.url, token: options.token }
   let stopped = false
   let fatal = false
   let authenticated = false
@@ -166,7 +192,8 @@ export function startStageControlSession(options: StageControlSessionOptions) {
         ? body.message
         : 'Authentication failed.'
       if (message === invalidTokenMessage) {
-        fatal = true
+        // With readEndpoint, the next connect reads the new token, so keep retrying.
+        fatal = !options.readEndpoint
         log('Stage control authentication failed. Check the token in Settings, Connection.')
         current.close()
       }
@@ -193,14 +220,23 @@ export function startStageControlSession(options: StageControlSessionOptions) {
       return
     }
 
+    // Keep the request id on every error, so the client can match the reply.
+    const rawRequestId = event.data && typeof event.data === 'object' && 'requestId' in event.data && typeof event.data.requestId === 'string'
+      ? event.data.requestId
+      : undefined
     try {
       const request = parseStageControlData(event.data)
-      const result = await options.dispatch(request.command)
+      log(`Running ${request.command.action}${request.requestId === undefined ? '' : ` (${request.requestId})`}.`)
+      const result = await withTimeout(
+        options.dispatch(request.command),
+        dispatchTimeoutMs,
+        `The stage did not answer the ${request.command.action} action within ${dispatchTimeoutMs} ms.`,
+      )
       sendResult(current, peerId, request.requestId, result)
     }
     catch (error) {
       const message = errorMessageFrom(error) ?? 'The stage control payload is not valid.'
-      sendResult(current, peerId, undefined, { ok: false, error: message })
+      sendResult(current, peerId, rawRequestId, { ok: false, error: message })
     }
   }
 
@@ -216,14 +252,41 @@ export function startStageControlSession(options: StageControlSessionOptions) {
   function connect() {
     if (stopped || fatal)
       return
+    if (!options.readEndpoint) {
+      open()
+      return
+    }
+    options.readEndpoint().then(
+      (next) => {
+        endpoint = next
+        open()
+      },
+      (error: unknown) => {
+        log(`Could not read the channel address. ${errorMessageFrom(error) ?? ''}`.trim())
+        open()
+      },
+    )
+  }
+
+  function open() {
+    if (stopped || fatal)
+      return
     authenticated = false
     clearHeartbeat()
-    const current = (options.connect ?? openSocket)(options.url)
+    let current: StageControlSocket
+    try {
+      current = (options.connect ?? openSocket)(endpoint.url)
+    }
+    catch (error) {
+      log(`Could not open ${endpoint.url}. ${errorMessageFrom(error) ?? ''}`.trim())
+      scheduleReconnect()
+      return
+    }
     socket = current
     current.addEventListener('open', () => {
       if (socket !== current)
         return
-      send(current, { type: 'module:authenticate', data: { token: options.token } })
+      send(current, { type: 'module:authenticate', data: { token: endpoint.token } })
     })
     current.addEventListener('message', (event) => {
       if (socket !== current)
@@ -233,6 +296,7 @@ export function startStageControlSession(options: StageControlSessionOptions) {
     current.addEventListener('close', () => {
       if (socket !== current)
         return
+      log('Channel connection closed. Reconnecting.')
       clearHeartbeat()
       socket = undefined
       scheduleReconnect()
