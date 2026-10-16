@@ -110,6 +110,8 @@ export default {
   asar: true,
   asarUnpack: [
     '**/*.node',
+    // Lets external MCP clients run the stdio bridge with plain node.
+    'resources/stage-control-mcp-bridge.mjs',
     '**/node_modules/@auv-js/cli-*/bin/**',
   ],
   extraResources: [

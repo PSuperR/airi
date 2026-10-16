@@ -337,7 +337,19 @@ Use `motion.rename` to give motions clear names and tags so later choices are be
 
 `motion.list` reads the stage with a generic model command, `{ "action": "state" }`. It returns `{ "renderer": "live2d", "live2dMotionGroups": [ { "group": "Tap", "count": 2 } ] }` in `data`. You can send it yourself as a normal `stage:control` action.
 
-## Example
+## MCP
+
+The plugin also starts an MCP server (Streamable HTTP) at `http://127.0.0.1:6122/mcp`. It calls the same dispatch in-process.
+
+- Loopback only; the Host header must be localhost.
+- Auth: the channel token as `Authorization: Bearer <token>` or `?token=<token>`.
+- `AIRI_STAGE_MCP_PORT` changes the port; `AIRI_STAGE_MCP=off` disables it.
+- One tool per action, generated from the `capabilities` field descriptions (`stage_light`, `motion_play`, ...), plus `stage_command` (`{ action, data }`). 12 s timeout per call.
+- Resources `airi://stage/capabilities` and `airi://stage/motions`; library changes send `resources/updated` and `resources/list_changed`.
+- Stdio-only clients: `node <app>/resources/app.asar.unpacked/resources/stage-control-mcp-bridge.mjs --token <token>`.
+
+Code: `src/mcp-server.ts`, `src/mcp-tools.ts`.
+
 
 Run this command from the repository root while the desktop app is open:
 

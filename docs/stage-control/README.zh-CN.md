@@ -231,6 +231,58 @@ Live2D 条目：`"id": "live2d:Tap:0"`，`"type": "live2d"`，`"source": { "kind
 { "type": "stage:control:event", "data": { "event": "motion.library.changed", "directory": "...", "motions": [] } }
 ```
 
+## MCP（Model Context Protocol）
+
+AIRI 启动时，stage-control 插件会在 **`http://127.0.0.1:6122/mcp`** 自动开启一个 MCP 服务器（Streamable HTTP 传输），进程内直接调用与 WebSocket 相同的 dispatch，不经过 6121 的 WebSocket。
+
+- 只监听 `127.0.0.1`，并校验 Host 头（防 DNS rebinding）。
+- 鉴权使用与 WebSocket 相同的 token（设置 → 连接）：`Authorization: Bearer <token>` 请求头，或 `?token=<token>` 查询参数。改 token 立即生效。
+- 端口：环境变量 `AIRI_STAGE_MCP_PORT`（默认 6122）；`AIRI_STAGE_MCP=off` 关闭。
+- 每次调用 12 秒超时，超时返回明确错误。
+
+**工具**（由 `capabilities` 的 valibot 字段描述自动生成 JSON Schema，中英文说明）：
+`stage_capabilities`、`stage_state`、`stage_expression`、`stage_motion`、`stage_speech`、`stage_view`、`stage_model`、`stage_vrma`、`stage_light`、`stage_window`、`motion_list`、`motion_play`、`motion_rename`、`motion_upload`、`motion_delete`、`motion_setDirectory`，以及通用的 `stage_command`（`{ action, data }`）。
+
+**资源**：`airi://stage/capabilities`（能力 + 舞台快照）、`airi://stage/motions`（动作库）。动作库变化时向已连接会话发送 `notifications/resources/updated` 与 `resources/list_changed`。
+
+### Cursor（`%USERPROFILE%\.cursor\mcp.json`）
+
+```json
+{
+  "mcpServers": {
+    "airi": {
+      "url": "http://127.0.0.1:6122/mcp",
+      "headers": { "Authorization": "Bearer 你的token" }
+    }
+  }
+}
+```
+
+### Claude Desktop（`%APPDATA%\Claude\claude_desktop_config.json`）
+
+支持远程 URL 的版本可直接写 `url` + `headers`（同上）。只支持 stdio 的版本使用随应用附带的桥接脚本：
+
+```json
+{
+  "mcpServers": {
+    "airi": {
+      "command": "node",
+      "args": ["D:\\airi\\resources\\app.asar.unpacked\\resources\\stage-control-mcp-bridge.mjs"],
+      "env": { "AIRI_STAGE_TOKEN": "你的token" }
+    }
+  }
+}
+```
+
+### 通用 stdio 客户端
+
+```bash
+node D:\airi\resources\app.asar.unpacked\resources\stage-control-mcp-bridge.mjs --token 你的token
+# 可选：--url http://127.0.0.1:6122/mcp 或环境变量 AIRI_STAGE_MCP_URL
+```
+
+桥接脚本无依赖（Node 18+），把 stdin 的 JSON-RPC 逐行转发到 HTTP 端点。它不转发服务器主动推送的通知（资源更新），需要推送请直接用 URL 方式连接。
+
 ## 给 AI / LLM 的说明
 
 0. 第一步调用 `capabilities`，得到全部动作、字段范围和当前快照（模型类型、视角、灯光、窗口、动作库）；切换模型后再调用一次。
