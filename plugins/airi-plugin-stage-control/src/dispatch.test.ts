@@ -1,6 +1,12 @@
 import type { StageKitClient } from './kit'
 
-import { describe, expect, it, vi } from 'vitest'
+import { Buffer } from 'node:buffer'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
+
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { dispatchStageControl } from './dispatch'
 
@@ -51,6 +57,45 @@ describe('dispatchStageControl', () => {
     await expect(dispatchStageControl({ action: 'model', modelId: 'preset-live2d-1' }, kit)).resolves.toEqual({
       ok: false,
       error: 'The stage is not ready.',
+    })
+  })
+
+  describe('vrma', () => {
+    let dir: string
+    let file: string
+
+    beforeAll(async () => {
+      dir = await mkdtemp(join(tmpdir(), 'stage-control-'))
+      file = join(dir, 'wave.vrma')
+      await writeFile(file, Buffer.from('glTF'))
+      await writeFile(join(dir, 'wave.txt'), 'x')
+    })
+
+    afterAll(async () => {
+      await rm(dir, { recursive: true, force: true })
+    })
+
+    it('passes an http URL through', async () => {
+      const kit = createKit()
+      await dispatchStageControl({ action: 'vrma', src: 'https://example.com/a.vrma', loop: true }, kit)
+      expect(kit.command).toHaveBeenCalledWith({ action: 'vrma', src: 'https://example.com/a.vrma', loop: true })
+    })
+
+    it('reads a local path and a file URL as a data URL', async () => {
+      const expected = `data:application/octet-stream;base64,${Buffer.from('glTF').toString('base64')}`
+      for (const src of [file, pathToFileURL(file).href]) {
+        const kit = createKit()
+        await expect(dispatchStageControl({ action: 'vrma', src }, kit)).resolves.toEqual({ ok: true })
+        expect(kit.command).toHaveBeenCalledWith({ action: 'vrma', src: expected })
+      }
+    })
+
+    it('rejects a relative path, a missing file, and another extension', async () => {
+      const kit = createKit()
+      await expect(dispatchStageControl({ action: 'vrma', src: 'wave.vrma' }, kit)).resolves.toMatchObject({ ok: false, error: expect.stringContaining('absolute file path') })
+      await expect(dispatchStageControl({ action: 'vrma', src: join(dir, 'missing.vrma') }, kit)).resolves.toMatchObject({ ok: false, error: expect.stringContaining('not found') })
+      await expect(dispatchStageControl({ action: 'vrma', src: join(dir, 'wave.txt') }, kit)).resolves.toMatchObject({ ok: false, error: expect.stringContaining('.vrma extension') })
+      expect(kit.command).not.toHaveBeenCalled()
     })
   })
 })

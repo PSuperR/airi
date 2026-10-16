@@ -42,6 +42,17 @@ const modelCommand = v.object({
   modelId: v.pipe(v.string(), v.minLength(1)),
 })
 
+const fadeMs = v.pipe(finiteNumber, v.minValue(0), v.maxValue(10000))
+
+const vrmaCommand = v.object({
+  requestId: v.optional(v.string()),
+  action: v.literal('vrma'),
+  src: v.pipe(v.string(), v.trim(), v.minLength(1)),
+  loop: v.optional(v.boolean()),
+  fadeInMs: v.optional(fadeMs),
+  fadeOutMs: v.optional(fadeMs),
+})
+
 const windowCommand = v.object({
   requestId: v.optional(v.string()),
   action: v.literal('window'),
@@ -54,6 +65,7 @@ const stageControlDataSchema = v.variant('action', [
   speechCommand,
   viewCommand,
   modelCommand,
+  vrmaCommand,
   windowCommand,
 ])
 

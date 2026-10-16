@@ -130,6 +130,27 @@ Examples are `preset-live2d-1` and `preset-vrm-1`.
 
 The active character card selects that model. A missing id returns an error.
 
+### vrma
+
+Plays one VRM animation (`.vrma`) on the VRM model. The model fades back to its idle animation when the clip ends.
+
+| Field | Required | Meaning |
+| --- | --- | --- |
+| `src` | yes | An `http(s)` URL, a `file://` URL, or an absolute path to a `.vrma` file on the computer that runs the desktop app. |
+| `loop` | no | Boolean. The default is false. A looping clip plays until the next `vrma` command or a model reload. |
+| `fadeInMs` | no | Fade from the current pose, 0 to 10000. The default is 300. |
+| `fadeOutMs` | no | Fade back to idle, 0 to 10000. The default is 300. |
+
+```json
+{ "type": "stage:control", "data": { "requestId": "2", "action": "vrma", "src": "C:\\Users\\me\\VRMA_MotionPack\\vrma\\VRMA_01.vrma", "fadeInMs": 300, "fadeOutMs": 500 } }
+```
+
+The renderer cannot read local files. The plugin reads a local file itself, up to 32 MB, and sends it to the stage as a `data:` URL. The file name must end in `.vrma`. A relative path returns an error.
+
+The result returns when the clip starts. It does not wait until the clip ends.
+
+A Live2D model returns an error. Another model type returns an error.
+
 ### window
 
 | Field | Required | Meaning |

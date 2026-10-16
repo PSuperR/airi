@@ -730,6 +730,7 @@ const stopStageCommands = registerStageCommands(command => executeStageModelComm
     play: fileName => live2d.motions.play(fileName),
   },
   setVrmExpression: (name, intensity, durationMs) => vrmViewerRef.value?.setExpression(name, intensity, durationMs) ?? false,
+  playVrmAnimation: async (src, options) => await vrmViewerRef.value?.playAnimation(src, options) ?? false,
   setLive2dView: (key, value) => live2dView.set(key, value),
   setVrmView: (key, value) => vrmView.set(key, value),
   setModel: modelId => cards.setActiveCardDefaultAvatarModel(modelId),

@@ -21,6 +21,8 @@ export interface StageCommandRuntime {
     play: (fileName: string) => Promise<boolean>
   }
   setVrmExpression: (name: string, intensity: number, durationMs: number) => boolean | Promise<boolean>
+  /** Plays one .vrma clip on the VRM model. Resolves false when the model is not ready. */
+  playVrmAnimation: (src: string, options: { loop: boolean, fadeInMs: number, fadeOutMs: number }) => Promise<boolean>
   setLive2dView: (key: 'x' | 'y' | 'scale', value: number) => void
   setVrmView: (key: 'x' | 'y' | 'z' | 'cameraDistance', value: number) => void
   setModel: (modelId: string) => Promise<boolean>
@@ -115,6 +117,27 @@ async function applyMotion(command: Extract<StageModelCommand, { action: 'motion
     throw new Error('The Live2D model is not ready.')
 }
 
+const VRMA_SOURCE = /^(?:https?:|data:|blob:)/i
+
+async function applyVrma(command: Extract<StageModelCommand, { action: 'vrma' }>, runtime: StageCommandRuntime) {
+  if (runtime.renderer === 'live2d')
+    throw new Error('The Live2D model cannot play a .vrma animation. Switch to a VRM model.')
+
+  if (runtime.renderer !== 'vrm')
+    throw new Error(unsupported('VRMA animation', runtime.renderer))
+
+  if (!VRMA_SOURCE.test(command.src))
+    throw new Error('The .vrma source must be an http(s), data, or blob URL.')
+
+  const played = await runtime.playVrmAnimation(command.src, {
+    loop: command.loop ?? false,
+    fadeInMs: command.fadeInMs ?? 300,
+    fadeOutMs: command.fadeOutMs ?? 300,
+  })
+  if (!played)
+    throw new Error('The VRM model is not ready.')
+}
+
 function applyView(command: Extract<StageModelCommand, { action: 'view' }>, runtime: StageCommandRuntime) {
   if (command.x === undefined && command.y === undefined && command.z === undefined && command.scale === undefined)
     throw new Error('The view action needs x, y, z, or scale.')
@@ -172,6 +195,9 @@ export async function executeStageModelCommand(command: StageModelCommand, runti
         throw new Error(`No display model has id "${command.modelId}".`)
       return
     }
+    case 'vrma':
+      await applyVrma(command, runtime)
+      return
     case 'speech':
       await applySpeech(command, runtime)
   }

@@ -981,6 +981,9 @@ watch(directionalLightRotation, (newRotation) => {
 }, { deep: true })
 
 defineExpose({
+  playAnimation: async (src: string, options?: { loop?: boolean, fadeInMs?: number, fadeOutMs?: number }) => {
+    return await modelRef.value?.playAnimation(src, options) ?? false
+  },
   setExpression: (expression: string, intensity = 1, durationMs = 3000) => {
     return modelRef.value?.setExpression(expression, intensity, durationMs) ?? false
   },

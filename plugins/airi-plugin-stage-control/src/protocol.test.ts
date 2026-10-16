@@ -38,6 +38,20 @@ describe('parseStageControlData', () => {
     })
   })
 
+  it('reads a vrma action', () => {
+    expect(parseStageControlData({ action: 'vrma', src: ' https://example.com/a.vrma ', loop: true, fadeInMs: 0, fadeOutMs: 500 }).command).toEqual({
+      action: 'vrma',
+      src: 'https://example.com/a.vrma',
+      loop: true,
+      fadeInMs: 0,
+      fadeOutMs: 500,
+    })
+    expect(() => parseStageControlData({ action: 'vrma', src: '' })).toThrow('The stage control payload is not valid.')
+    expect(() => parseStageControlData({ action: 'vrma' })).toThrow('The stage control payload is not valid.')
+    expect(() => parseStageControlData({ action: 'vrma', src: 'a.vrma', fadeInMs: -1 })).toThrow('The stage control payload is not valid.')
+    expect(() => parseStageControlData({ action: 'vrma', src: 'a.vrma', loop: 'yes' })).toThrow('The stage control payload is not valid.')
+  })
+
   it('rejects an empty view, a bad intensity, and an unknown action', () => {
     expect(() => parseStageControlData({ action: 'view' })).toThrow('The view action needs x, y, z, or scale.')
     expect(() => parseStageControlData({ action: 'expression', name: 'happy', intensity: 2 })).toThrow('The stage control payload is not valid.')

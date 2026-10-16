@@ -32,6 +32,10 @@ function createRuntime(renderer: StageCommandRuntime['renderer']): StageCommandR
       calls.push('vrm-expression')
       return true
     }),
+    playVrmAnimation: vi.fn(async (src: string) => {
+      calls.push(`vrma:${src}`)
+      return true
+    }),
     setLive2dView: vi.fn((key: string, value: number) => {
       calls.push(`live2d-view:${key}:${value}`)
     }),
@@ -117,5 +121,23 @@ describe('executeStageModelCommand', () => {
     await expect(executeStageModelCommand({ action: 'expression', name: 'happy' }, runtime))
       .rejects
       .toThrow('Expression is not supported for the spine model.')
+  })
+
+  it('plays a vrma clip on VRM with defaults and rejects it on Live2D', async () => {
+    const vrm = createRuntime('vrm')
+    await executeStageModelCommand({ action: 'vrma', src: 'data:application/octet-stream;base64,AA==' }, vrm)
+    expect(vrm.playVrmAnimation).toHaveBeenCalledWith('data:application/octet-stream;base64,AA==', { loop: false, fadeInMs: 300, fadeOutMs: 300 })
+
+    await executeStageModelCommand({ action: 'vrma', src: 'https://example.com/a.vrma', loop: true, fadeInMs: 0, fadeOutMs: 800 }, vrm)
+    expect(vrm.playVrmAnimation).toHaveBeenLastCalledWith('https://example.com/a.vrma', { loop: true, fadeInMs: 0, fadeOutMs: 800 })
+
+    await expect(executeStageModelCommand({ action: 'vrma', src: 'C:/a.vrma' }, vrm)).rejects.toThrow('http(s), data, or blob URL')
+    vi.mocked(vrm.playVrmAnimation).mockResolvedValueOnce(false)
+    await expect(executeStageModelCommand({ action: 'vrma', src: 'https://example.com/a.vrma' }, vrm)).rejects.toThrow('The VRM model is not ready.')
+
+    const live2d = createRuntime('live2d')
+    await expect(executeStageModelCommand({ action: 'vrma', src: 'https://example.com/a.vrma' }, live2d)).rejects.toThrow('The Live2D model cannot play a .vrma animation.')
+    expect(live2d.playVrmAnimation).not.toHaveBeenCalled()
+    await expect(executeStageModelCommand({ action: 'vrma', src: 'https://example.com/a.vrma' }, createRuntime('disabled'))).rejects.toThrow('not supported')
   })
 })

@@ -4,6 +4,8 @@ import type { StageKitClient } from './kit'
 
 import { errorMessageFrom } from '@moeru/std'
 
+import { resolveVrmaSource } from './vrma-source'
+
 /** Routes one command to the stage kit. */
 export async function dispatchStageControl(command: StageControlCommand, kit: StageKitClient): Promise<StageCommandResult> {
   try {
@@ -15,6 +17,9 @@ export async function dispatchStageControl(command: StageControlCommand, kit: St
       if (!shown.ok)
         return shown
     }
+
+    if (command.action === 'vrma')
+      return await kit.command({ ...command, src: await resolveVrmaSource(command.src) })
 
     return await kit.command(command)
   }
