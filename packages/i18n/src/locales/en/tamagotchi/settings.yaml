@@ -20,7 +20,7 @@ spotlight:
   errors:
     unknown: Unknown error
     prefix: 'Something went wrong: {message}'
-    shortcutRegistrationFailed: 'Something went wrong: failed to register Spotlight shortcut.'
+    shortcutRegistrationFailed: 'Failed to register the Spotlight shortcut {accelerator}. Another app (or another AIRI) may already use it.'
 pages:
   modules:
     mcp-server:

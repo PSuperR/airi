@@ -2,6 +2,7 @@
 import type { Live2DLipSync, Live2DLipSyncOptions } from '@proj-airi/model-driver-lipsync'
 import type { Profile } from '@proj-airi/model-driver-lipsync/shared/wlipsync'
 import type { CaptionChannelEvent, PresenceBubbleState } from '@proj-airi/stage-shared'
+import type { StageLighting, StageLightingPatch } from '@proj-airi/stage-shared/stage-command'
 import type { VrmInteractionTarget } from '@proj-airi/stage-ui-three'
 
 import type { EmotionPayload } from '../../constants/emotions'
@@ -13,11 +14,11 @@ import { createLive2DLipSync } from '@proj-airi/model-driver-lipsync'
 import { wlipsyncProfile } from '@proj-airi/model-driver-lipsync/shared/wlipsync'
 import { normalizeActPayload, Playback } from '@proj-airi/pipelines-audio'
 import { presenceBubbleIdle, presenceBubbleThinking } from '@proj-airi/stage-shared'
-import { createLive2D, defaultLive2DMotionControlDynamics, Live2DScene, useLive2DMotionControl, useLive2dParams, useSettingsLive2d } from '@proj-airi/stage-ui-live2d'
+import { createLive2D, defaultLive2DMotionControlDynamics, Live2DScene, useL2dViewControl, useLive2DMotionControl, useLive2dParams, useSettingsLive2d } from '@proj-airi/stage-ui-live2d'
 import { MMDScene } from '@proj-airi/stage-ui-mmd'
 import { SpineScene } from '@proj-airi/stage-ui-spine'
 import { TachieScene } from '@proj-airi/stage-ui-tachie'
-import { ThreeScene } from '@proj-airi/stage-ui-three'
+import { ThreeScene, useModelStore, useThreeViewControl } from '@proj-airi/stage-ui-three'
 import { animations } from '@proj-airi/stage-ui-three/assets/vrm'
 import { createQueue } from '@proj-airi/stream-kit'
 import { Callout } from '@proj-airi/ui'
@@ -34,6 +35,8 @@ import StageRenderError from './stage-render-error.vue'
 // import { useDuckDb } from '../../composables/use-duck-db'
 import { Emotion, EMOTION_EmotionMotionName_value, EMOTION_VRMExpressionName_value, EmotionThinkMotionName } from '../../constants/emotions'
 import { live2dMotionMagicProfiles, useLive2DMotionMagic, useLive2DMotionMagicSettings } from '../../features/motions/live2d'
+import { executeStageModelCommand } from '../../libs/stage-command-executor'
+import { registerStageCommands } from '../../libs/stage-commands'
 import { getSpeechBusContext, speechOutputGetPlaybackState, speechOutputPlaybackStateChangedEvent } from '../../services/speech/bus'
 import { useLlmStreamingControlStore } from '../../stores/ai/chat-llm/streaming-control'
 import { useAudioContext, useSpeakingStore } from '../../stores/audio'
@@ -667,7 +670,138 @@ async function captureCharacterFrame() {
     return mmdSceneRef.value?.captureFrame()
 }
 
+const live2dView = useL2dViewControl()
+const vrmView = useThreeViewControl()
+const vrmSceneStore = useModelStore()
+
+function getVrmLighting(): StageLighting {
+  return {
+    ambient: { intensity: vrmSceneStore.ambientLightIntensity, color: vrmSceneStore.ambientLightColor },
+    directional: {
+      intensity: vrmSceneStore.directionalLightIntensity,
+      color: vrmSceneStore.directionalLightColor,
+      rotationX: vrmSceneStore.directionalLightRotation.x,
+      rotationY: vrmSceneStore.directionalLightRotation.y,
+    },
+    hemisphere: {
+      intensity: vrmSceneStore.hemisphereLightIntensity,
+      skyColor: vrmSceneStore.hemisphereSkyColor,
+      groundColor: vrmSceneStore.hemisphereGroundColor,
+    },
+    environment: vrmSceneStore.envSelect === 'skyBox' ? 'skyBox' : 'hemisphere',
+    skyBoxIntensity: vrmSceneStore.skyBoxIntensity,
+    exposure: vrmSceneStore.toneMappingExposure,
+  }
+}
+
+// Writes the same persisted refs the VRM settings page edits.
+function setVrmLighting(patch: StageLightingPatch) {
+  const { ambient, directional, hemisphere } = patch
+  if (ambient?.intensity !== undefined)
+    vrmSceneStore.ambientLightIntensity = ambient.intensity
+  if (ambient?.color !== undefined)
+    vrmSceneStore.ambientLightColor = ambient.color
+  if (directional?.intensity !== undefined)
+    vrmSceneStore.directionalLightIntensity = directional.intensity
+  if (directional?.color !== undefined)
+    vrmSceneStore.directionalLightColor = directional.color
+  if (directional?.rotationX !== undefined || directional?.rotationY !== undefined) {
+    vrmSceneStore.directionalLightRotation = {
+      ...vrmSceneStore.directionalLightRotation,
+      ...(directional.rotationX !== undefined ? { x: directional.rotationX } : {}),
+      ...(directional.rotationY !== undefined ? { y: directional.rotationY } : {}),
+    }
+  }
+  if (hemisphere?.intensity !== undefined)
+    vrmSceneStore.hemisphereLightIntensity = hemisphere.intensity
+  if (hemisphere?.skyColor !== undefined)
+    vrmSceneStore.hemisphereSkyColor = hemisphere.skyColor
+  if (hemisphere?.groundColor !== undefined)
+    vrmSceneStore.hemisphereGroundColor = hemisphere.groundColor
+  if (patch.environment !== undefined)
+    vrmSceneStore.envSelect = patch.environment
+  if (patch.skyBoxIntensity !== undefined)
+    vrmSceneStore.skyBoxIntensity = patch.skyBoxIntensity
+  if (patch.exposure !== undefined)
+    vrmSceneStore.toneMappingExposure = patch.exposure
+}
+
+async function speakExternalLine(text: string) {
+  if (speechMuted.value)
+    throw new Error('Speech is muted. The caption is visible.')
+  if (!speechStore.configured)
+    throw new Error('Speech is not configured. The caption is visible.')
+
+  const characterId = selectedCharacterId.value
+  if (!characterId)
+    throw new Error('No character is selected. The caption is visible.')
+
+  let output
+  try {
+    output = speechStore.createOutput(
+      { sessionId: 'stage-control', turnId: crypto.randomUUID() },
+      cards.getModules(characterId).speech,
+      { playback },
+      audioContext,
+    )
+  }
+  catch (error) {
+    const message = errorMessageFrom(error) ?? 'Speech is not available.'
+    throw new Error(`${message} The caption is visible.`)
+  }
+
+  if (!('synthesize' in output))
+    throw new Error('The active speech provider cannot speak an external line. The caption is visible.')
+
+  const audio = await output.synthesize({
+    streamId: crypto.randomUUID(),
+    intentId: crypto.randomUUID(),
+    segmentId: crypto.randomUUID(),
+    sequence: 0,
+    text,
+    special: null,
+    reason: 'flush',
+    priority: 0,
+    createdAt: Date.now(),
+  }, new AbortController().signal)
+  if (!audio)
+    throw new Error('Speech did not return audio. The caption is visible.')
+
+  void playback.openGroup('stage-control').enqueue({
+    id: crypto.randomUUID(),
+    audio,
+  })
+}
+
+const stopStageCommands = registerStageCommands(command => executeStageModelCommand(command, {
+  renderer: stageModelRenderer.value,
+  live2dExpressions: {
+    availableNames: live2d.expressions.available.value.map(expression => expression.name),
+    play: request => live2d.expressions.play(request),
+  },
+  live2dMotions: {
+    available: live2d.motions.available.value,
+    play: fileName => live2d.motions.play(fileName),
+  },
+  setVrmExpression: (name, intensity, durationMs) => vrmViewerRef.value?.setExpression(name, intensity, durationMs) ?? false,
+  playVrmAnimation: async (src, options) => await vrmViewerRef.value?.playAnimation(src, options) ?? false,
+  setLive2dView: (key, value) => live2dView.set(key, value),
+  setVrmView: (key, value) => vrmView.set(key, value),
+  getView: () => stageModelRenderer.value === 'live2d'
+    ? { x: live2dView.position.value.x, y: live2dView.position.value.y, scale: live2dView.scale.value }
+    : { ...vrmView.modelOffset.value, scale: vrmView.cameraDistance.value },
+  getVrmLighting,
+  setVrmLighting,
+  setModel: modelId => cards.setActiveCardDefaultAvatarModel(modelId),
+  showCaptionText: (text) => {
+    assistantCaption.value = text
+    postCaption({ type: 'caption-assistant', text, operation: 'replace' })
+  },
+  speakText: text => speakExternalLine(text),
+}))
+
 onUnmounted(() => {
+  stopStageCommands()
   live2d.dispose()
   disposePlaybackStateHandler()
   resetLive2dLipSync()

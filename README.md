@@ -12,6 +12,8 @@
   <img width="250" src="./docs/assets/banner-light-1280x640.avif" />
 </picture>
 
+> **Stage control 分支中文使用说明：[docs/stage-control/README.zh-CN.md](./docs/stage-control/README.zh-CN.md)**
+
 <h1 align="center">Project AIRI</h1>
 
 <p align="center">Re-creating Neuro-sama, a soul container of AI waifu / virtual characters to bring them into our world.</p>

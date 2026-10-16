@@ -40,6 +40,7 @@ const {
 
   ambientLightIntensity,
   ambientLightColor,
+  toneMappingExposure,
 
   hemisphereLightIntensity,
   hemisphereSkyColor,
@@ -186,6 +187,12 @@ const envOptions = computed(() => [
         v-model="ambientLightColor"
         :disabled="controlsLocked"
         label="Ambient Light Color"
+      />
+
+      <PropertyNumber
+        v-model="toneMappingExposure"
+        :config="{ min: 0.1, max: 5, step: 0.01, label: 'Exposure', disabled: controlsLocked }"
+        label="Exposure"
       />
     </div>
     <div>

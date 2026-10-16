@@ -1,0 +1,7 @@
+export { stageControlExtension } from './extension'
+export { stageKit } from './kit'
+export type { StageChannelEndpoint, StageKitClient } from './kit'
+export { stageControlManifest } from './manifest'
+export { MotionLibrary } from './motion-library'
+export type { MotionEntry, MotionMetadata } from './motion-library'
+export type { MotionLibraryCommand, PluginControlCommand } from './protocol'

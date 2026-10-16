@@ -20,7 +20,7 @@ spotlight:
   errors:
     unknown: ข้อผิดพลาดที่ไม่รู้จัก
     prefix: 'เกิดข้อผิดพลาด: {message}'
-    shortcutRegistrationFailed: 'เกิดข้อผิดพลาด: ลงทะเบียนปุ่มลัดของ Spotlight ไม่สำเร็จ'
+    shortcutRegistrationFailed: 'เกิดข้อผิดพลาด: ลงทะเบียนปุ่มลัดของ Spotlight ไม่สำเร็จ ({accelerator})'
 pages:
   modules:
     mcp-server:

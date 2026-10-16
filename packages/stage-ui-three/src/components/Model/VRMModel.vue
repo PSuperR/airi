@@ -8,6 +8,7 @@
 
 import type { VRM } from '@pixiv/three-vrm'
 import type {
+  AnimationAction,
   Group,
   Material,
   Object3D,
@@ -36,6 +37,8 @@ import { until } from '@vueuse/core'
 import {
   AnimationMixer,
   Box3,
+  LoopOnce,
+  LoopRepeat,
   MathUtils,
   Mesh,
   MeshPhysicalMaterial,
@@ -192,6 +195,9 @@ const raycaster = new Raycaster()
 
 // Animation related ref
 const vrmAnimationMixer = ref<AnimationMixer>()
+// Idle action per mixer, so a one-shot clip can fade back to it.
+const idleActions = new WeakMap<AnimationMixer, AnimationAction>()
+let activeClip: { mixer: AnimationMixer, action: AnimationAction, onFinished?: (event: { action: AnimationAction }) => void } | undefined
 const { onBeforeRender, stop, start } = useLoop()
 
 const vrmHooks: readonly VrmHook[] = resolveInternalVrmHooks()
@@ -839,7 +845,9 @@ async function loadModel() {
 
     // play animation
     nextVrmAnimationMixer = new AnimationMixer(_vrm.scene)
-    nextVrmAnimationMixer.clipAction(clip).play()
+    const idleAction = nextVrmAnimationMixer.clipAction(clip)
+    idleAction.play()
+    idleActions.set(nextVrmAnimationMixer, idleAction)
 
     nextVrmEmote = useVRMEmote(_vrm)
 
@@ -1101,11 +1109,84 @@ function headAnchor() {
   return { position: headPosition, radius }
 }
 
+function releaseActiveClip(fadeOutSeconds: number) {
+  const current = activeClip
+  activeClip = undefined
+  if (!current)
+    return
+  if (current.onFinished)
+    current.mixer.removeEventListener('finished', current.onFinished as any)
+  const idle = idleActions.get(current.mixer)
+  if (idle) {
+    idle.enabled = true
+    idle.play()
+    idle.crossFadeFrom(current.action, fadeOutSeconds, false)
+  }
+  else {
+    current.action.fadeOut(fadeOutSeconds)
+  }
+}
+
+/**
+ * Plays one .vrma clip over idle, then fades back to idle when it ends.
+ * A looping clip runs until the next clip or a model reload.
+ */
+async function playAnimation(src: string, options: { loop?: boolean, fadeInMs?: number, fadeOutMs?: number } = {}) {
+  const currentVrm = vrm.value
+  const mixer = vrmAnimationMixer.value
+  if (!currentVrm || !mixer)
+    return false
+
+  const animation = await loadVRMAnimation(src)
+  if (!animation)
+    throw new Error('The .vrma file has no VRM animation.')
+  if (vrm.value !== currentVrm || vrmAnimationMixer.value !== mixer)
+    return false
+
+  const clip = await clipFromVRMAnimation(currentVrm, animation)
+  if (!clip)
+    throw new Error('The .vrma animation does not fit this VRM model.')
+  reAnchorRootPositionTrack(clip, currentVrm)
+
+  const fadeIn = (options.fadeInMs ?? 300) / 1000
+  const fadeOut = (options.fadeOutMs ?? 300) / 1000
+  const previous = activeClip
+  if (previous) {
+    if (previous.onFinished)
+      previous.mixer.removeEventListener('finished', previous.onFinished as any)
+    activeClip = undefined
+    previous.action.fadeOut(fadeIn)
+  }
+
+  const action = mixer.clipAction(clip)
+  action.reset()
+  action.setLoop(options.loop ? LoopRepeat : LoopOnce, Infinity)
+  action.clampWhenFinished = true
+  action.play()
+  const from = previous?.action ?? idleActions.get(mixer)
+  if (from)
+    action.crossFadeFrom(from, fadeIn, false)
+  else
+    action.fadeIn(fadeIn)
+
+  const entry: NonNullable<typeof activeClip> = { mixer, action }
+  if (!options.loop) {
+    entry.onFinished = (event) => {
+      if (event.action === action && activeClip === entry)
+        releaseActiveClip(fadeOut)
+    }
+    mixer.addEventListener('finished', entry.onFinished as any)
+  }
+  activeClip = entry
+  return true
+}
+
 defineExpose({
   headAnchor,
+  playAnimation,
   getInteractionColliders: () => interactionColliders.value?.colliders ?? [],
-  setExpression(expression: string, intensity = 1) {
-    vrmEmote.value?.setEmotionWithResetAfter(expression, 3000, intensity)
+  setExpression(expression: string, intensity = 1, durationMs = 3000) {
+    return vrmEmote.value?.setEmotionWithResetAfter(expression, durationMs, intensity) ?? false
   },
   // NOTICE: This runtime frame hook is intentionally separate from internal VRM model hooks.
   // External callers use it for live pose/tracking input; internal hooks remain reserved for

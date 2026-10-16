@@ -10,6 +10,7 @@ import { updateModelAssetStatus, useInferencePreload } from '@proj-airi/stage-ui
 import { usePiniaSynced } from '@proj-airi/stage-ui/libs/pinia'
 import { initializeAnalytics } from '@proj-airi/stage-ui/libs/product-signals'
 import { isSherpawModelBundled, setSherpawModelAssetHost } from '@proj-airi/stage-ui/libs/providers/providers/sherpaw/model-assets'
+import { runStageCommand } from '@proj-airi/stage-ui/libs/stage-commands'
 import { useAuthStore } from '@proj-airi/stage-ui/stores/auth'
 import { useCharacterOrchestratorStore } from '@proj-airi/stage-ui/stores/character'
 import { useChatStore } from '@proj-airi/stage-ui/stores/chat'
@@ -42,6 +43,7 @@ import {
   electronGodotStageGetStatus,
   electronGodotStageStatusChanged,
   electronSettingsNavigate,
+  electronStageCommand,
   i18nGetLocale,
   i18nSetLocale,
 } from '../shared/eventa'
@@ -289,6 +291,12 @@ function createFullStageRuntime() {
 
   context.value.on(electronPluginToolsChanged, () => {
     void refreshPluginRuntimeTools()
+  })
+
+  defineInvokeHandler(context.value, electronStageCommand, async (command) => {
+    if (!command)
+      return { ok: false, error: 'The stage control payload is not valid.' }
+    return runStageCommand(command)
   })
 
   return {

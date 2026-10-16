@@ -2,6 +2,9 @@ import type { VRMCore } from '@pixiv/three-vrm-core'
 
 import { computed, ref } from 'vue'
 
+/** Face names that `setEmotion` accepts. */
+export const vrmEmotionNames = ['happy', 'sad', 'angry', 'surprised', 'neutral', 'think', 'relaxed'] as const
+
 interface EmotionState {
   expression?: {
     name: string
@@ -125,14 +128,14 @@ export function useVRMEmote(vrm: VRMCore) {
     }
   }
 
-  const setEmotion = (emotionName: string, intensity = 1) => {
+  const setEmotion = (emotionName: string, intensity = 1): boolean => {
     const normalizedIntensity = clampIntensity(intensity)
     if (normalizedIntensity <= 0)
-      return
+      return false
 
     if (!emotionStates.has(emotionName)) {
       console.warn(`Emotion ${emotionName} not found`)
-      return
+      return false
     }
 
     clearResetTimeout()
@@ -188,20 +191,24 @@ export function useVRMEmote(vrm: VRMCore) {
       }
       targetExpressionValues.value.set(actualName, expr.value * normalizedIntensity)
     }
+
+    return true
   }
 
-  const setEmotionWithResetAfter = (emotionName: string, ms: number, intensity = 1) => {
-    if (clampIntensity(intensity) <= 0)
-      return
+  const setEmotionWithResetAfter = (emotionName: string, ms: number, intensity = 1): boolean => {
+    if (clampIntensity(intensity) <= 0 || !emotionStates.has(emotionName))
+      return false
 
     clearResetTimeout()
-    setEmotion(emotionName, intensity)
+    if (!setEmotion(emotionName, intensity))
+      return false
 
     // Set timeout to reset to neutral
     resetTimeout.value = setTimeout(() => {
       setEmotion('neutral')
       resetTimeout.value = undefined
     }, ms) as unknown as number
+    return true
   }
 
   // isEmoteActive's only consumer (VRMModel.vue) uses it to suppress

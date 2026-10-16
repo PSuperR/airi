@@ -52,6 +52,8 @@ export interface Live2DExpressionsContext {
   register: (definition: Live2DExpressionDefinition) => () => void
   setExecutor: (executor: Live2DExpressionExecutor | undefined) => void
   execute: (request: Live2DExpressionRequest) => Promise<boolean>
+  /** Plays one available expression. The agent policy does not apply. */
+  play: (request: Live2DExpressionRequest) => Promise<boolean>
   resetExecution: () => Promise<boolean>
   /** Renders temporary previews over expression state without changing it. */
   setPreviewExpressions: (names: readonly string[]) => void
@@ -191,8 +193,8 @@ export function createLive2DExpressionsContext(
     executor = nextExecutor
   }
 
-  async function execute(request: Live2DExpressionRequest): Promise<boolean> {
-    if (!enabled.value.some(expression => expression.name === request.name) || !executor)
+  async function run(request: Live2DExpressionRequest, allowed: boolean): Promise<boolean> {
+    if (!allowed || !executor)
       return false
 
     cancelExecutionReset()
@@ -214,6 +216,14 @@ export function createLive2DExpressionsContext(
     }
 
     return true
+  }
+
+  function execute(request: Live2DExpressionRequest) {
+    return run(request, enabled.value.some(expression => expression.name === request.name))
+  }
+
+  function play(request: Live2DExpressionRequest) {
+    return run(request, available.value.some(expression => expression.name === request.name))
   }
 
   async function resetExecution(): Promise<boolean> {
@@ -273,6 +283,7 @@ export function createLive2DExpressionsContext(
     register,
     setExecutor,
     execute,
+    play,
     resetExecution,
     setPreviewExpressions,
     activate,

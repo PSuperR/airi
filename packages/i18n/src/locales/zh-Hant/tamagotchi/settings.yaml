@@ -20,7 +20,7 @@ spotlight:
   errors:
     unknown: 未知錯誤
     prefix: '出錯啦：{message}'
-    shortcutRegistrationFailed: '出錯啦：快捷鍵註冊失敗。'
+    shortcutRegistrationFailed: 'Spotlight 快捷鍵 {accelerator} 註冊失敗，可能已被其他程式（或另一個 AIRI）佔用。'
 pages:
   modules:
     mcp-server:

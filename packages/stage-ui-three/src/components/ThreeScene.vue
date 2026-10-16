@@ -198,6 +198,7 @@ const {
   hemisphereSkyColor,
   hemisphereGroundColor,
   hemisphereLightIntensity,
+  toneMappingExposure,
 
   lookAtTarget,
   trackingMode,
@@ -981,8 +982,11 @@ watch(directionalLightRotation, (newRotation) => {
 }, { deep: true })
 
 defineExpose({
-  setExpression: (expression: string, intensity = 1) => {
-    modelRef.value?.setExpression(expression, intensity)
+  playAnimation: async (src: string, options?: { loop?: boolean, fadeInMs?: number, fadeOutMs?: number }) => {
+    return await modelRef.value?.playAnimation(src, options) ?? false
+  },
+  setExpression: (expression: string, intensity = 1, durationMs = 3000) => {
+    return modelRef.value?.setExpression(expression, intensity, durationMs) ?? false
   },
   // NOTICE: External runtime hooks are intentionally separate from internal VRM model hooks.
   // This public frame hook is reserved for live pose/tracking input and is forwarded to VRMModel
@@ -1029,7 +1033,7 @@ defineExpose({
       :dpr="renderScale"
       :fps-limit="maxFps > 0 ? maxFps : Infinity"
       :tone-mapping="ACESFilmicToneMapping"
-      :tone-mapping-exposure="1"
+      :tone-mapping-exposure="toneMappingExposure"
       :clear-alpha="0"
       @ready="onTresReady"
       @render="onTresRender"
