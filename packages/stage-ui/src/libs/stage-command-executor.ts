@@ -1,4 +1,4 @@
-import type { StageModelCommand } from '@proj-airi/stage-shared/stage-command'
+import type { StageModelCommand, StageState } from '@proj-airi/stage-shared/stage-command'
 
 import { vrmEmotionNames } from '@proj-airi/stage-ui-three/composables/vrm/expression'
 
@@ -177,9 +177,27 @@ async function applySpeech(command: Extract<StageModelCommand, { action: 'speech
   await runtime.speakText(command.text)
 }
 
-/** Applies one model command. Throws a clear error when the current model cannot do it. */
-export async function executeStageModelCommand(command: StageModelCommand, runtime: StageCommandRuntime): Promise<void> {
+/** Reads the current model type and its Live2D motion groups. */
+export function readStageState(runtime: StageCommandRuntime): StageState {
+  const counts = new Map<string, number>()
+  if (runtime.renderer === 'live2d') {
+    for (const motion of runtime.live2dMotions.available)
+      counts.set(motion.group, Math.max(counts.get(motion.group) ?? 0, motion.index + 1))
+  }
+  return {
+    renderer: runtime.renderer ?? 'disabled',
+    live2dMotionGroups: [...counts].map(([group, count]) => ({ group, count })),
+  }
+}
+
+/**
+ * Applies one model command. Throws a clear error when the current model cannot do it.
+ * Returns data for read commands such as `state`.
+ */
+export async function executeStageModelCommand(command: StageModelCommand, runtime: StageCommandRuntime): Promise<unknown> {
   switch (command.action) {
+    case 'state':
+      return readStageState(runtime)
     case 'expression':
       await applyExpression(command, runtime)
       return

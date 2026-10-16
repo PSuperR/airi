@@ -56,6 +56,21 @@ function createRuntime(renderer: StageCommandRuntime['renderer']): StageCommandR
 }
 
 describe('executeStageModelCommand', () => {
+  it('reports the model type and Live2D motion groups for the state command', async () => {
+    await expect(executeStageModelCommand({ action: 'state' }, createRuntime('live2d'))).resolves.toEqual({
+      renderer: 'live2d',
+      live2dMotionGroups: [{ group: 'Wave', count: 2 }],
+    })
+    await expect(executeStageModelCommand({ action: 'state' }, createRuntime('vrm'))).resolves.toEqual({
+      renderer: 'vrm',
+      live2dMotionGroups: [],
+    })
+    await expect(executeStageModelCommand({ action: 'state' }, createRuntime(undefined))).resolves.toEqual({
+      renderer: 'disabled',
+      live2dMotionGroups: [],
+    })
+  })
+
   it('plays a Live2D expression and rejects an unknown name', async () => {
     const runtime = createRuntime('live2d')
 

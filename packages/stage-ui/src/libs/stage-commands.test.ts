@@ -18,6 +18,17 @@ describe('runStageCommand', () => {
     stop()
   })
 
+  it('returns data from a read command', async () => {
+    const stop = registerStageCommands(async () => ({ renderer: 'vrm', live2dMotionGroups: [] }))
+
+    await expect(runStageCommand({ action: 'state' })).resolves.toEqual({
+      ok: true,
+      data: { renderer: 'vrm', live2dMotionGroups: [] },
+    })
+
+    stop()
+  })
+
   it('returns the scene error and clears the registration', async () => {
     const stop = registerStageCommands(async () => {
       throw new Error('Live2D has no expression named "missing".')

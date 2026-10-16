@@ -2,7 +2,7 @@ import type { StageCommandResult, StageModelCommand } from '@proj-airi/stage-sha
 
 import { errorMessageFrom } from '@moeru/std'
 
-type StageCommandHandler = (command: StageModelCommand) => Promise<void>
+type StageCommandHandler = (command: StageModelCommand) => Promise<unknown>
 
 let handler: StageCommandHandler | undefined
 
@@ -25,8 +25,8 @@ export async function runStageCommand(command: StageModelCommand): Promise<Stage
     return { ok: false, error: 'The stage is not ready.' }
 
   try {
-    await handler(command)
-    return { ok: true }
+    const data = await handler(command)
+    return data === undefined ? { ok: true } : { ok: true, data }
   }
   catch (error) {
     return { ok: false, error: errorMessageFrom(error) ?? 'The stage command failed.' }

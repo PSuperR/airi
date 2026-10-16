@@ -7,6 +7,7 @@ import type { BrowserWindow } from 'electron'
 import { defineInvoke } from '@moeru/eventa'
 import { errorMessageFrom } from '@moeru/std'
 import { stageKit } from '@proj-airi/plugin-stage-control'
+import { app } from 'electron'
 
 import { electronStageCommand } from '../../../../shared/eventa'
 import { readServerChannelEndpoint } from '../channel-server'
@@ -77,6 +78,7 @@ export function createHostStageKit(): KitRef<StageKitClient> {
         command: command => stageCommand(command),
         setWindowVisible: visible => setWindowVisible(visible),
         showCaption: () => showCaptionWindow(),
+        readUserDataPath: async () => app.getPath('userData'),
       }
     },
   }
