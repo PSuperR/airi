@@ -53,6 +53,31 @@ const vrmaCommand = v.object({
   fadeOutMs: v.optional(fadeMs),
 })
 
+const hexColor = v.pipe(v.string(), v.regex(/^#[0-9a-f]{6}$/i))
+// Numbers out of range are clamped by the stage, so only finiteness is checked here.
+const lightIntensity = finiteNumber
+const lightRotation = finiteNumber
+
+const lightCommand = v.object({
+  requestId: v.optional(v.string()),
+  action: v.literal('light'),
+  ambient: v.optional(v.object({ intensity: v.optional(lightIntensity), color: v.optional(hexColor) })),
+  directional: v.optional(v.object({
+    intensity: v.optional(lightIntensity),
+    color: v.optional(hexColor),
+    rotationX: v.optional(lightRotation),
+    rotationY: v.optional(lightRotation),
+  })),
+  hemisphere: v.optional(v.object({
+    intensity: v.optional(lightIntensity),
+    skyColor: v.optional(hexColor),
+    groundColor: v.optional(hexColor),
+  })),
+  environment: v.optional(v.picklist(['hemisphere', 'skyBox'])),
+  skyBoxIntensity: v.optional(finiteNumber),
+  exposure: v.optional(finiteNumber),
+})
+
 const windowCommand = v.object({
   requestId: v.optional(v.string()),
   action: v.literal('window'),
@@ -113,7 +138,20 @@ const motionSetDirectoryCommand = v.object({
   reset: v.optional(v.boolean()),
 })
 
-const stageControlDataSchema = v.variant('action', [
+const stateCommand = v.object({
+  requestId: v.optional(v.string()),
+  action: v.literal('state'),
+})
+
+const capabilitiesCommand = v.object({
+  requestId: v.optional(v.string()),
+  action: v.literal('capabilities'),
+})
+
+/** Every action schema. The `capabilities` action describes these, so it cannot drift. */
+export const stageControlActionSchemas = [
+  capabilitiesCommand,
+  stateCommand,
   motionListCommand,
   motionPlayCommand,
   motionRenameCommand,
@@ -126,8 +164,11 @@ const stageControlDataSchema = v.variant('action', [
   viewCommand,
   modelCommand,
   vrmaCommand,
+  lightCommand,
   windowCommand,
-])
+] as const
+
+const stageControlDataSchema = v.variant('action', [...stageControlActionSchemas])
 
 /** Motion library actions. The plugin runs them; only `motion.list` and `motion.play` read the stage. */
 export type MotionLibraryCommand
@@ -139,7 +180,7 @@ export type MotionLibraryCommand
     | { action: 'motion.setDirectory', directory?: string, reset?: boolean }
 
 /** Every action the plugin accepts. */
-export type PluginControlCommand = StageControlCommand | MotionLibraryCommand
+export type PluginControlCommand = StageControlCommand | MotionLibraryCommand | { action: 'capabilities' }
 
 /** One parsed stage control request. */
 export interface StageControlRequest {

@@ -216,6 +216,9 @@ export const useModelStore = defineStore('modelStore', () => {
   const ambientLightColor = useLocalStorage('settings/stage-ui-three/scenes/scene/ambient-light/color', '#FFFFFF')
   const ambientLightIntensity = useLocalStorage('settings/stage-ui-three/scenes/scene/ambient-light/intensity', 0.6)
 
+  // Renderer tone mapping exposure. 1 is the neutral value.
+  const toneMappingExposure = useLocalStorage('settings/stage-ui-three/scenes/scene/tone-mapping-exposure', 1)
+
   // Rendering quality
   const renderScale = useLocalStorage('settings/stage-ui-three/renderScale', Math.min(window.devicePixelRatio, 2))
   const multisampling = useLocalStorage('settings/stage-ui-three/multisampling', 4)
@@ -253,6 +256,7 @@ export const useModelStore = defineStore('modelStore', () => {
     hemisphereSkyColor,
     hemisphereGroundColor,
     hemisphereLightIntensity,
+    toneMappingExposure,
 
     lookAtTarget,
     trackingMode,

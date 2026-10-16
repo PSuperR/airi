@@ -2,6 +2,7 @@
 import type { Live2DLipSync, Live2DLipSyncOptions } from '@proj-airi/model-driver-lipsync'
 import type { Profile } from '@proj-airi/model-driver-lipsync/shared/wlipsync'
 import type { CaptionChannelEvent, PresenceBubbleState } from '@proj-airi/stage-shared'
+import type { StageLighting, StageLightingPatch } from '@proj-airi/stage-shared/stage-command'
 import type { VrmInteractionTarget } from '@proj-airi/stage-ui-three'
 
 import type { EmotionPayload } from '../../constants/emotions'
@@ -17,7 +18,7 @@ import { createLive2D, defaultLive2DMotionControlDynamics, Live2DScene, useL2dVi
 import { MMDScene } from '@proj-airi/stage-ui-mmd'
 import { SpineScene } from '@proj-airi/stage-ui-spine'
 import { TachieScene } from '@proj-airi/stage-ui-tachie'
-import { ThreeScene, useThreeViewControl } from '@proj-airi/stage-ui-three'
+import { ThreeScene, useModelStore, useThreeViewControl } from '@proj-airi/stage-ui-three'
 import { animations } from '@proj-airi/stage-ui-three/assets/vrm'
 import { createQueue } from '@proj-airi/stream-kit'
 import { Callout } from '@proj-airi/ui'
@@ -671,6 +672,59 @@ async function captureCharacterFrame() {
 
 const live2dView = useL2dViewControl()
 const vrmView = useThreeViewControl()
+const vrmSceneStore = useModelStore()
+
+function getVrmLighting(): StageLighting {
+  return {
+    ambient: { intensity: vrmSceneStore.ambientLightIntensity, color: vrmSceneStore.ambientLightColor },
+    directional: {
+      intensity: vrmSceneStore.directionalLightIntensity,
+      color: vrmSceneStore.directionalLightColor,
+      rotationX: vrmSceneStore.directionalLightRotation.x,
+      rotationY: vrmSceneStore.directionalLightRotation.y,
+    },
+    hemisphere: {
+      intensity: vrmSceneStore.hemisphereLightIntensity,
+      skyColor: vrmSceneStore.hemisphereSkyColor,
+      groundColor: vrmSceneStore.hemisphereGroundColor,
+    },
+    environment: vrmSceneStore.envSelect === 'skyBox' ? 'skyBox' : 'hemisphere',
+    skyBoxIntensity: vrmSceneStore.skyBoxIntensity,
+    exposure: vrmSceneStore.toneMappingExposure,
+  }
+}
+
+// Writes the same persisted refs the VRM settings page edits.
+function setVrmLighting(patch: StageLightingPatch) {
+  const { ambient, directional, hemisphere } = patch
+  if (ambient?.intensity !== undefined)
+    vrmSceneStore.ambientLightIntensity = ambient.intensity
+  if (ambient?.color !== undefined)
+    vrmSceneStore.ambientLightColor = ambient.color
+  if (directional?.intensity !== undefined)
+    vrmSceneStore.directionalLightIntensity = directional.intensity
+  if (directional?.color !== undefined)
+    vrmSceneStore.directionalLightColor = directional.color
+  if (directional?.rotationX !== undefined || directional?.rotationY !== undefined) {
+    vrmSceneStore.directionalLightRotation = {
+      ...vrmSceneStore.directionalLightRotation,
+      ...(directional.rotationX !== undefined ? { x: directional.rotationX } : {}),
+      ...(directional.rotationY !== undefined ? { y: directional.rotationY } : {}),
+    }
+  }
+  if (hemisphere?.intensity !== undefined)
+    vrmSceneStore.hemisphereLightIntensity = hemisphere.intensity
+  if (hemisphere?.skyColor !== undefined)
+    vrmSceneStore.hemisphereSkyColor = hemisphere.skyColor
+  if (hemisphere?.groundColor !== undefined)
+    vrmSceneStore.hemisphereGroundColor = hemisphere.groundColor
+  if (patch.environment !== undefined)
+    vrmSceneStore.envSelect = patch.environment
+  if (patch.skyBoxIntensity !== undefined)
+    vrmSceneStore.skyBoxIntensity = patch.skyBoxIntensity
+  if (patch.exposure !== undefined)
+    vrmSceneStore.toneMappingExposure = patch.exposure
+}
 
 async function speakExternalLine(text: string) {
   if (speechMuted.value)
@@ -733,6 +787,11 @@ const stopStageCommands = registerStageCommands(command => executeStageModelComm
   playVrmAnimation: async (src, options) => await vrmViewerRef.value?.playAnimation(src, options) ?? false,
   setLive2dView: (key, value) => live2dView.set(key, value),
   setVrmView: (key, value) => vrmView.set(key, value),
+  getView: () => stageModelRenderer.value === 'live2d'
+    ? { x: live2dView.position.value.x, y: live2dView.position.value.y, scale: live2dView.scale.value }
+    : { ...vrmView.modelOffset.value, scale: vrmView.cameraDistance.value },
+  getVrmLighting,
+  setVrmLighting,
   setModel: modelId => cards.setActiveCardDefaultAvatarModel(modelId),
   showCaptionText: (text) => {
     assistantCaption.value = text

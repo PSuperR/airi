@@ -1,4 +1,4 @@
-import type { StageModelCommand, StageState } from '@proj-airi/stage-shared/stage-command'
+import type { StageLighting, StageLightingPatch, StageModelCommand, StageState } from '@proj-airi/stage-shared/stage-command'
 
 import { vrmEmotionNames } from '@proj-airi/stage-ui-three/composables/vrm/expression'
 
@@ -25,6 +25,12 @@ export interface StageCommandRuntime {
   playVrmAnimation: (src: string, options: { loop: boolean, fadeInMs: number, fadeOutMs: number }) => Promise<boolean>
   setLive2dView: (key: 'x' | 'y' | 'scale', value: number) => void
   setVrmView: (key: 'x' | 'y' | 'z' | 'cameraDistance', value: number) => void
+  /** Reads the current view of the shown model. */
+  getView: () => StageState['view']
+  /** Reads the VRM scene lighting. */
+  getVrmLighting: () => StageLighting
+  /** Writes a checked, clamped lighting change to the VRM scene settings. */
+  setVrmLighting: (patch: StageLightingPatch) => void
   setModel: (modelId: string) => Promise<boolean>
   showCaptionText: (text: string) => void
   speakText: (text: string) => Promise<void>
@@ -177,6 +183,78 @@ async function applySpeech(command: Extract<StageModelCommand, { action: 'speech
   await runtime.speakText(command.text)
 }
 
+const HEX_COLOR = /^#[0-9a-f]{6}$/i
+
+function clamp(value: number, min: number, max: number, field: string) {
+  if (typeof value !== 'number' || !Number.isFinite(value))
+    throw new Error(`${field} must be a finite number.`)
+  return Math.min(max, Math.max(min, value))
+}
+
+function color(value: string, field: string) {
+  if (typeof value !== 'string' || !HEX_COLOR.test(value))
+    throw new Error(`${field} must be a #RRGGBB color.`)
+  return value.toLowerCase()
+}
+
+function defined<T extends object>(value: T): T | undefined {
+  const entries = Object.entries(value).filter(([, item]) => item !== undefined)
+  return entries.length > 0 ? Object.fromEntries(entries) as T : undefined
+}
+
+/** Checks and clamps a light command. Returns undefined when it changes nothing. */
+export function normalizeLightingPatch(command: Extract<StageModelCommand, { action: 'light' }>): StageLightingPatch | undefined {
+  const patch: StageLightingPatch = {}
+  const intensity = (value: number | undefined, field: string) => value === undefined ? undefined : clamp(value, 0, 10, field)
+  const rotation = (value: number | undefined, field: string) => value === undefined ? undefined : clamp(value, -180, 180, field)
+  const hex = (value: string | undefined, field: string) => value === undefined ? undefined : color(value, field)
+
+  if (command.ambient) {
+    patch.ambient = defined({
+      intensity: intensity(command.ambient.intensity, 'ambient.intensity'),
+      color: hex(command.ambient.color, 'ambient.color'),
+    })
+  }
+  if (command.directional) {
+    patch.directional = defined({
+      intensity: intensity(command.directional.intensity, 'directional.intensity'),
+      color: hex(command.directional.color, 'directional.color'),
+      rotationX: rotation(command.directional.rotationX, 'directional.rotationX'),
+      rotationY: rotation(command.directional.rotationY, 'directional.rotationY'),
+    })
+  }
+  if (command.hemisphere) {
+    patch.hemisphere = defined({
+      intensity: intensity(command.hemisphere.intensity, 'hemisphere.intensity'),
+      skyColor: hex(command.hemisphere.skyColor, 'hemisphere.skyColor'),
+      groundColor: hex(command.hemisphere.groundColor, 'hemisphere.groundColor'),
+    })
+  }
+  if (command.environment !== undefined) {
+    if (command.environment !== 'hemisphere' && command.environment !== 'skyBox')
+      throw new Error('environment must be "hemisphere" or "skyBox".')
+    patch.environment = command.environment
+  }
+  if (command.skyBoxIntensity !== undefined)
+    patch.skyBoxIntensity = clamp(command.skyBoxIntensity, 0, 1, 'skyBoxIntensity')
+  if (command.exposure !== undefined)
+    patch.exposure = clamp(command.exposure, 0.1, 5, 'exposure')
+
+  return defined(patch)
+}
+
+function applyLight(command: Extract<StageModelCommand, { action: 'light' }>, runtime: StageCommandRuntime): StageLighting {
+  if (runtime.renderer === 'live2d')
+    throw new Error('The Live2D model has no scene lighting. Switch to a VRM model.')
+  if (runtime.renderer !== 'vrm')
+    throw new Error(unsupported('Light', runtime.renderer))
+
+  const patch = normalizeLightingPatch(command)
+  if (patch)
+    runtime.setVrmLighting(patch)
+  return runtime.getVrmLighting()
+}
+
 /** Reads the current model type and its Live2D motion groups. */
 export function readStageState(runtime: StageCommandRuntime): StageState {
   const counts = new Map<string, number>()
@@ -187,6 +265,8 @@ export function readStageState(runtime: StageCommandRuntime): StageState {
   return {
     renderer: runtime.renderer ?? 'disabled',
     live2dMotionGroups: [...counts].map(([group, count]) => ({ group, count })),
+    ...(runtime.renderer === 'live2d' || runtime.renderer === 'vrm' ? { view: runtime.getView() } : {}),
+    ...(runtime.renderer === 'vrm' ? { lighting: runtime.getVrmLighting() } : {}),
   }
 }
 
@@ -213,6 +293,8 @@ export async function executeStageModelCommand(command: StageModelCommand, runti
         throw new Error(`No display model has id "${command.modelId}".`)
       return
     }
+    case 'light':
+      return applyLight(command, runtime)
     case 'vrma':
       await applyVrma(command, runtime)
       return

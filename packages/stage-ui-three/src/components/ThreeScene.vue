@@ -198,6 +198,7 @@ const {
   hemisphereSkyColor,
   hemisphereGroundColor,
   hemisphereLightIntensity,
+  toneMappingExposure,
 
   lookAtTarget,
   trackingMode,
@@ -1032,7 +1033,7 @@ defineExpose({
       :dpr="renderScale"
       :fps-limit="maxFps > 0 ? maxFps : Infinity"
       :tone-mapping="ACESFilmicToneMapping"
-      :tone-mapping-exposure="1"
+      :tone-mapping-exposure="toneMappingExposure"
       :clear-alpha="0"
       @ready="onTresReady"
       @render="onTresRender"

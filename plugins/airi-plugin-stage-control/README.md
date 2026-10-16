@@ -70,6 +70,22 @@ The server adds `route` and `metadata` when it forwards the result. Your request
 
 ## Actions
 
+### capabilities (call this first)
+
+```json
+{ "type": "stage:control", "data": { "requestId": "c", "action": "capabilities" } }
+```
+
+Returns `data.actions`: every accepted action with its fields. Each field lists `type`, `required`, and, when set, `min`, `max`, `minLength`, `maxLength`, `pattern`, `integer`, `enum`, and nested `fields`. The list is generated from the plugin's validation schemas, so it always matches what the plugin accepts.
+
+It also returns `data.snapshot`: `modelType`, `view` (`x`, `y`, `z` for VRM, `scale`), `lighting` (VRM only, otherwise `null`), `window.visible` (`null` when the host cannot tell), `live2dMotionGroups`, and `motionLibrary` (`directory`, `vrmaCount`, up to 50 `names`).
+
+An AI client should call `capabilities` once at the start and again after a `model` switch.
+
+### state
+
+Returns `renderer`, `live2dMotionGroups`, `view` when a model is shown, and `lighting` when the renderer is `vrm`.
+
 ### expression
 
 | Field | Required | Meaning |
@@ -150,6 +166,31 @@ The renderer cannot read local files. The plugin reads a local file itself, up t
 The result returns when the clip starts. It does not wait until the clip ends.
 
 A Live2D model returns an error. Another model type returns an error.
+
+### light
+
+Changes the VRM scene lighting. VRM only; Live2D returns an error. Every field is optional. Omitted fields keep their value. The change is saved, the same as the VRM settings page.
+
+| Field | Meaning |
+| --- | --- |
+| `ambient` | `{ intensity?, color? }` |
+| `directional` | `{ intensity?, color?, rotationX?, rotationY? }`. Rotation is in degrees. |
+| `hemisphere` | `{ intensity?, skyColor?, groundColor? }`. Used when `environment` is `hemisphere`. |
+| `environment` | `hemisphere` or `skyBox`. |
+| `skyBoxIntensity` | 0 to 1. Used when `environment` is `skyBox`. |
+| `exposure` | Renderer tone mapping exposure, 0.1 to 5. `1` is neutral. |
+
+Intensities are clamped to 0-10 and rotations to -180..180. Colors must be `#RRGGBB`; another format returns an error.
+
+The result `data` is the full current lighting. Send `{ "action": "light" }` with no fields to read it without changing anything.
+
+```json
+{ "type": "stage:control", "data": { "requestId": "3", "action": "light", "ambient": { "intensity": 0.8, "color": "#ffe8d0" }, "directional": { "intensity": 2.5, "rotationX": -30, "rotationY": 45 }, "exposure": 1.2 } }
+```
+
+```json
+{ "type": "stage:control:result", "data": { "requestId": "3", "ok": true, "data": { "ambient": { "intensity": 0.8, "color": "#ffe8d0" }, "directional": { "intensity": 2.5, "color": "#fffbf5", "rotationX": -30, "rotationY": 45 }, "hemisphere": { "intensity": 0.4, "skyColor": "#FFFFFF", "groundColor": "#222222" }, "environment": "hemisphere", "skyBoxIntensity": 0.1, "exposure": 1.2 } } }
+```
 
 ### window
 

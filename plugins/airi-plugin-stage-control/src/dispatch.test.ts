@@ -50,6 +50,15 @@ describe('dispatchStageControl', () => {
     expect(kit.command).not.toHaveBeenCalled()
   })
 
+  it('forwards a light command and returns the lighting data', async () => {
+    const kit = createKit()
+    vi.mocked(kit.command).mockResolvedValue({ ok: true, data: { exposure: 1.2 } })
+
+    await expect(dispatchStageControl({ action: 'light', exposure: 1.2 }, kit)).resolves.toEqual({ ok: true, data: { exposure: 1.2 } })
+    expect(kit.command).toHaveBeenCalledWith({ action: 'light', exposure: 1.2 })
+    expect(kit.showCaption).not.toHaveBeenCalled()
+  })
+
   it('returns a kit error as a failed result', async () => {
     const kit = createKit()
     vi.mocked(kit.command).mockRejectedValue(new Error('The stage is not ready.'))

@@ -52,6 +52,26 @@ describe('parseStageControlData', () => {
     expect(() => parseStageControlData({ action: 'vrma', src: 'a.vrma', loop: 'yes' })).toThrow('The stage control payload is not valid.')
   })
 
+  it('reads a light action and rejects a bad color', () => {
+    expect(parseStageControlData({ action: 'light' }).command).toEqual({ action: 'light' })
+    expect(parseStageControlData({
+      action: 'light',
+      ambient: { intensity: 0.8, color: '#FFEEDD' },
+      directional: { rotationX: 30 },
+      environment: 'skyBox',
+      exposure: 1.2,
+    }).command).toEqual({
+      action: 'light',
+      ambient: { intensity: 0.8, color: '#FFEEDD' },
+      directional: { rotationX: 30 },
+      environment: 'skyBox',
+      exposure: 1.2,
+    })
+    expect(() => parseStageControlData({ action: 'light', ambient: { color: 'red' } })).toThrow('The stage control payload is not valid.')
+    expect(() => parseStageControlData({ action: 'light', environment: 'studio' })).toThrow('The stage control payload is not valid.')
+    expect(() => parseStageControlData({ action: 'light', exposure: Number.NaN })).toThrow('The stage control payload is not valid.')
+  })
+
   it('rejects an empty view, a bad intensity, and an unknown action', () => {
     expect(() => parseStageControlData({ action: 'view' })).toThrow('The view action needs x, y, z, or scale.')
     expect(() => parseStageControlData({ action: 'expression', name: 'happy', intensity: 2 })).toThrow('The stage control payload is not valid.')

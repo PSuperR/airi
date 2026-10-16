@@ -54,6 +54,13 @@ export function setWindowVisible(visible: boolean) {
   return applyWindowVisibility(stageWindow, visible)
 }
 
+/** Whether the bound main window is visible. Undefined when it is not ready. */
+export function isWindowVisible() {
+  if (!stageWindow || stageWindow.isDestroyed())
+    return undefined
+  return stageWindow.isVisible()
+}
+
 /** Opens the caption window so a later caption broadcast has a listener. */
 export async function showCaptionWindow(): Promise<StageCommandResult> {
   if (!showCaption)
@@ -78,6 +85,7 @@ export function createHostStageKit(): KitRef<StageKitClient> {
         command: command => stageCommand(command),
         setWindowVisible: visible => setWindowVisible(visible),
         showCaption: () => showCaptionWindow(),
+        isWindowVisible: () => isWindowVisible(),
         readUserDataPath: async () => app.getPath('userData'),
       }
     },

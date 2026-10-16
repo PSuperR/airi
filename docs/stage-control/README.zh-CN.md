@@ -5,7 +5,7 @@
 ## 这个分支新增了什么
 
 - 内置插件 `plugins/airi-plugin-stage-control`：连接本地服务器通道（默认 `ws://127.0.0.1:6121/ws`），接收 `stage:control` 消息，控制桌面版 AIRI 的舞台。
-- 动作：`expression`（表情）、`motion`（Live2D 动作）、`speech`（字幕/朗读）、`view`（视角）、`model`（切换模型）、`window`（显示/隐藏窗口）、`vrma`（播放 VRM 动画）、`state`（读取舞台状态）。
+- 动作：`expression`（表情）、`motion`（Live2D 动作）、`speech`（字幕/朗读）、`view`（视角）、`model`（切换模型）、`window`（显示/隐藏窗口）、`vrma`（播放 VRM 动画）、`state`（读取舞台状态）、`light`（VRM 灯光）、`capabilities`（自描述：列出全部动作与当前快照）。
 - 动作库：`motion.list` / `motion.play` / `motion.rename` / `motion.upload` / `motion.delete` / `motion.setDirectory`，同时支持 `.vrma` 文件和 Live2D 模型自带的动作组。动作库变化时会广播 `stage:control:event`。
 - 每条请求都有回复 `stage:control:result`，带回 `requestId`；插件到渲染进程的调用有 10 秒超时。
 
@@ -69,6 +69,17 @@ pnpm run build && npx electron-builder --win zip --x64
 
 读取类动作把结果放在 `data.data` 中。
 
+### capabilities（AI 第一个调用）
+
+```json
+{ "action": "capabilities" }
+```
+
+返回：
+
+- `actions`：所有支持的动作及字段（`type`、`required`、`min`/`max`、`minLength`/`maxLength`、`pattern`、`integer`、`enum`、嵌套 `fields`）。由插件的 valibot 校验 schema 自动生成，不会与实际校验不一致。
+- `snapshot`：当前快照——`modelType`、`view`（x/y/scale，VRM 还有 z）、`lighting`（仅 VRM，否则为 `null`）、`window.visible`、`live2dMotionGroups`、`motionLibrary`（目录、vrma 数量、最多 50 个名字）。
+
 ### 基础动作
 
 ```json
@@ -103,12 +114,26 @@ pnpm run build && npx electron-builder --win zip --x64
 { "action": "state" }
 ```
 
+```json
+{ "action": "light", "ambient": { "intensity": 0.8, "color": "#ffe8d0" }, "directional": { "intensity": 2.5, "color": "#fffbf5", "rotationX": -30, "rotationY": 45 }, "exposure": 1.2 }
+```
+
+```json
+{ "action": "light", "environment": "hemisphere", "hemisphere": { "intensity": 0.6, "skyColor": "#cfe8ff", "groundColor": "#332211" } }
+```
+
+```json
+{ "action": "light" }
+```
+
 以上都放在 `"data"` 里发送。说明：
 
 - `expression`：Live2D 用模型表情名；VRM 用 `happy`、`angry`、`sad`、`relaxed`、`surprised` 等。
 - `motion`：仅 Live2D，`name` 为动作组或文件名，组内多个动作时需 `index`。
 - `vrma`：仅 VRM。`src` 可为 http(s)/data/blob URL、`file://` URL 或绝对路径；本地文件由插件读取后以 data URL 发给渲染进程，上限 32MB。
-- `state`：返回 `{ "renderer": "live2d", "live2dMotionGroups": [{ "group": "Tap", "count": 2 }] }`。
+- `view`：`x`/`y` 控制位置，`scale` 控制大小。Live2D：`x`/`y` 为相对中心的百分比（-500~500），`scale` 为缩放倍数（0.01~3，1 为原始大小）。VRM：`x`/`y`/`z` 为米（-10~10），`scale` 是相机距离（0~10，越大模型看起来越小）。超出范围会被截断。
+- `light`：仅 VRM（Live2D 返回错误）。字段都可选，未给的保持不变；修改会持久保存，与 VRM 设置页同步（设置页也新增了 Exposure 滑块）。强度截断到 0~10，旋转 -180~180 度，`skyBoxIntensity` 0~1，`exposure` 0.1~5（1 为默认）；颜色必须是 `#RRGGBB`。`environment` 为 `hemisphere` 或 `skyBox`。不带任何字段时只读取。结果 `data` 为完整的当前灯光。
+- `state`：返回 `{ "renderer": "live2d", "live2dMotionGroups": [{ "group": "Tap", "count": 2 }], "view": { "x": 0, "y": 0, "scale": 1 } }`；VRM 时还带 `lighting`。
 
 ### 动作库
 
@@ -208,12 +233,15 @@ Live2D 条目：`"id": "live2d:Tap:0"`，`"type": "live2d"`，`"source": { "kind
 
 ## 给 AI / LLM 的说明
 
-1. 先调用 `motion.list`，只会得到当前模型能用的动作。
+0. 第一步调用 `capabilities`，得到全部动作、字段范围和当前快照（模型类型、视角、灯光、窗口、动作库）；切换模型后再调用一次。
+1. 调用 `motion.list`，只会得到当前模型能用的动作。
 2. 根据 `name`、`tags`、`description` 选择合适的动作。
 3. 用 `motion.play` + `id` 播放。
 4. 切换模型后或收到 `motion.library.changed` 时重新 `motion.list`。
 5. `ok: false` 时读 `error`，里面会说明怎么处理（比如需要换成 VRM 模型）。
-6. 可以用 `motion.rename` 为动作补充中文名和标签，方便以后选择。
+6. 调灯光前先读 `capabilities` 或 `{ "action": "light" }` 拿到当前值，再只改需要的字段，小幅调整（如强度 ±0.2、exposure ±0.1）；颜色用 `#RRGGBB`。
+7. 调大小/位置用 `view`：`scale` 控制大小，`x`/`y` 控制位置。
+8. 可以用 `motion.rename` 为动作补充中文名和标签，方便以后选择。
 
 ## 测试脚本
 

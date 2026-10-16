@@ -21,7 +21,12 @@ export async function readStageState(kit: Pick<StageKitClient, 'command'>): Prom
   const data = result.data as Partial<StageState> | undefined
   if (!result.ok || !data || typeof data.renderer !== 'string')
     return { renderer: 'unknown', live2dMotionGroups: [], error: result.error ?? 'The stage did not report its state.' }
-  return { renderer: data.renderer, live2dMotionGroups: Array.isArray(data.live2dMotionGroups) ? data.live2dMotionGroups : [] }
+  return {
+    renderer: data.renderer,
+    live2dMotionGroups: Array.isArray(data.live2dMotionGroups) ? data.live2dMotionGroups : [],
+    ...(data.view ? { view: data.view } : {}),
+    ...(data.lighting ? { lighting: data.lighting } : {}),
+  }
 }
 
 function compatible(entry: MotionEntry, renderer: string) {

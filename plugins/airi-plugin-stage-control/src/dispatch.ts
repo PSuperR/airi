@@ -6,6 +6,7 @@ import type { PluginControlCommand } from './protocol'
 
 import { errorMessageFrom } from '@moeru/std'
 
+import { readCapabilities } from './capabilities'
 import { runMotionCommand } from './motion-actions'
 import { resolveVrmaSource } from './vrma-source'
 
@@ -16,12 +17,15 @@ export async function dispatchStageControl(
   motions?: Omit<MotionActionContext, 'kit'>,
 ): Promise<StageCommandResult> {
   try {
+    if (command.action === 'capabilities')
+      return await readCapabilities(kit, motions?.library)
+
     if (command.action.startsWith('motion.')) {
       if (!motions)
         return { ok: false, error: 'The motion library is not ready.' }
       return await runMotionCommand(command as Parameters<typeof runMotionCommand>[0], { ...motions, kit })
     }
-    const stageCommand = command as Exclude<PluginControlCommand, { action: `motion.${string}` }>
+    const stageCommand = command as Exclude<PluginControlCommand, { action: `motion.${string}` | 'capabilities' }>
 
     if (stageCommand.action === 'window')
       return await kit.setWindowVisible(stageCommand.visible)

@@ -18,6 +18,8 @@ export interface StageKitClient {
   command: (command: StageModelCommand) => Promise<StageCommandResult>
   setWindowVisible: (visible: boolean) => StageCommandResult | Promise<StageCommandResult>
   showCaption: () => Promise<StageCommandResult>
+  /** Whether the main window is visible. Optional so older hosts still work. */
+  isWindowVisible?: () => boolean | undefined | Promise<boolean | undefined>
   /**
    * Per-user data folder of the host app (Electron `userData`).
    * The motion library keeps its default folder and settings there.
